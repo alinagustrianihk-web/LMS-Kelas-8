@@ -1,0 +1,8 @@
+{
+  "name": "Quest8 LMS - Gamified English Learning",
+  "description": "A high-performance, gamified Learning Management System specifically designed for English Recount Text mastery, featuring student progress tracking, teacher analytics, and AI-powered tutoring.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}
