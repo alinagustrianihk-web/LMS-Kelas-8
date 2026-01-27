@@ -1,5 +1,30 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { CheckCircle2, AlertCircle, ChevronLeft, ArrowRight, Trash2, Loader2, Bot, Layers, Map, Settings2, Sparkles, LogIn, Zap, Gift, Globe, LockIcon, Award, User as UserIcon, UserPlus, Key, ListChecks } from "lucide-react";
+import {
+  CheckCircle2,
+  AlertCircle,
+  ChevronLeft,
+  ArrowRight,
+  Trash2,
+  Loader2,
+  Bot,
+  Layers,
+  Map,
+  Settings2,
+  Sparkles,
+  LogIn,
+  Zap,
+  Gift,
+  Globe,
+  LockIcon,
+  Award,
+  User as UserIcon,
+  UserPlus,
+  Key,
+  ListChecks,
+  Trophy,
+  Crown,
+  Medal,
+} from "lucide-react";
 import { INITIAL_CURRICULUM, DEFAULT_USERS, CHAPTERS } from "./constants.tsx";
 import { User, UserRole, Quest, Progress, SystemConfig, Chapter } from "./types.ts";
 import Layout from "./components/Layout.tsx";
@@ -8,7 +33,7 @@ import AISensei from "./components/AISensei.tsx";
 import { dbService } from "./services/dbService.ts";
 import { generateQuestImage, generateChapterQuests } from "./services/geminiService.ts";
 
-// --- Sub-components (ContentRenderer, StudentDashboard, TeacherDashboard) ---
+// --- Sub-components (ContentRenderer, LeaderboardList, StudentDashboard, TeacherDashboard) ---
 
 const ContentRenderer: React.FC<{ content: Quest["content"] }> = ({ content }) => (
   <div className="space-y-6 md:space-y-8">
@@ -48,7 +73,48 @@ const ContentRenderer: React.FC<{ content: Quest["content"] }> = ({ content }) =
   </div>
 );
 
-const StudentDashboard = ({ user, dbProgress, dbLevels, setActiveQuest, setView, setIsQuizMode }: any) => {
+const LeaderboardList: React.FC<{ users: User[]; limit?: number; highlightId?: string }> = ({ users, limit, highlightId }) => {
+  const students = users
+    .filter((u) => u.role === UserRole.STUDENT)
+    .sort((a, b) => b.xp - a.xp)
+    .slice(0, limit || users.length);
+
+  return (
+    <div className="space-y-3">
+      {students.map((s, idx) => {
+        const isTop3 = idx < 3;
+        const isMe = s.id === highlightId;
+        return (
+          <div key={s.id} className={`flex items-center justify-between p-4 rounded-2xl border transition-all ${isMe ? "bg-indigo-600/20 border-indigo-500/50 ring-1 ring-indigo-500" : "bg-slate-950 border-slate-800"}`}>
+            <div className="flex items-center gap-3">
+              <div
+                className={`w-8 h-8 rounded-lg flex items-center justify-center font-black text-xs ${
+                  idx === 0 ? "bg-amber-500 text-amber-950" : idx === 1 ? "bg-slate-300 text-slate-900" : idx === 2 ? "bg-orange-600 text-orange-100" : "bg-slate-900 text-slate-500 border border-slate-800"
+                }`}
+              >
+                {idx + 1}
+              </div>
+              <div>
+                <p className={`text-sm font-bold italic line-clamp-1 ${isMe ? "text-white" : "text-slate-200"}`}>
+                  {s.name} {isMe && "(You)"}
+                </p>
+                <p className="text-[9px] font-black text-slate-500 uppercase">@{s.username}</p>
+              </div>
+            </div>
+            <div className="text-right">
+              <p className="text-xs font-black text-indigo-400">
+                {s.xp} <span className="text-[8px] uppercase">XP</span>
+              </p>
+              {isTop3 && <div className="flex justify-end mt-0.5">{idx === 0 ? <Crown size={12} className="text-amber-500" /> : <Medal size={12} className={idx === 1 ? "text-slate-300" : "text-orange-600"} />}</div>}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+};
+
+const StudentDashboard = ({ user, dbUsers, dbProgress, dbLevels, setActiveQuest, setView, setIsQuizMode }: any) => {
   const [activeChapterId, setActiveChapterId] = useState("bab1");
 
   const publishedQuests = dbLevels.filter((l: any) => l.status === "published");
@@ -118,6 +184,16 @@ const StudentDashboard = ({ user, dbProgress, dbLevels, setActiveQuest, setView,
               );
             })}
           </div>
+
+          {/* Mini Leaderboard in Sidebar */}
+          <div className="bg-slate-900 p-6 rounded-[2.5rem] border border-slate-800 space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-xs font-black text-white uppercase tracking-widest italic flex items-center gap-2">
+                <Trophy size={14} className="text-amber-500" /> Top Rankers
+              </h3>
+            </div>
+            <LeaderboardList users={dbUsers} limit={5} highlightId={user.id} />
+          </div>
         </div>
 
         <div className="flex-1 w-full space-y-8">
@@ -179,7 +255,7 @@ const StudentDashboard = ({ user, dbProgress, dbLevels, setActiveQuest, setView,
 };
 
 const TeacherDashboard = ({ dbUsers, dbLevels, onUpdateConfig, onRewardUser, systemConfig, showAlert }: any) => {
-  const [activeTab, setActiveTab] = useState<"students" | "chapters" | "settings">("students");
+  const [activeTab, setActiveTab] = useState<"students" | "chapters" | "leaderboard" | "settings">("students");
   const [managedChapterId, setManagedChapterId] = useState<string | null>(null);
   const [announcement, setAnnouncement] = useState(systemConfig.announcement || "");
   const [generatingChapter, setGeneratingChapter] = useState<string | null>(null);
@@ -341,7 +417,7 @@ const TeacherDashboard = ({ dbUsers, dbLevels, onUpdateConfig, onRewardUser, sys
           <p className="text-[10px] font-bold text-slate-500 uppercase mt-2">Classroom Orchestration</p>
         </div>
         <div className="flex w-full md:w-auto overflow-x-auto no-scrollbar gap-2 bg-slate-900 p-1.5 md:p-2 rounded-2xl border border-slate-800">
-          {["students", "chapters", "settings"].map((t) => (
+          {["students", "chapters", "leaderboard", "settings"].map((t) => (
             <button
               key={t}
               onClick={() => setActiveTab(t as any)}
@@ -423,6 +499,21 @@ const TeacherDashboard = ({ dbUsers, dbLevels, onUpdateConfig, onRewardUser, sys
               </tbody>
             </table>
           </div>
+        </div>
+      )}
+
+      {activeTab === "leaderboard" && (
+        <div className="max-w-3xl mx-auto bg-slate-900 p-8 md:p-12 rounded-[2.5rem] md:rounded-[3.5rem] border border-slate-800 shadow-2xl">
+          <div className="flex items-center gap-4 mb-8">
+            <div className="w-14 h-14 bg-indigo-600 rounded-2xl flex items-center justify-center text-white shadow-xl shadow-indigo-900/20">
+              <Trophy size={32} />
+            </div>
+            <div>
+              <h3 className="text-2xl font-black text-white italic uppercase">Class Leaderboard</h3>
+              <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Global Ranking by XP</p>
+            </div>
+          </div>
+          <LeaderboardList users={dbUsers} />
         </div>
       )}
 
@@ -823,7 +914,9 @@ const App = () => {
 
   return (
     <Layout user={user} onLogout={handleLogout} onViewChange={setView} activeView={view}>
-      {view === "dashboard" && user?.role === UserRole.STUDENT && <StudentDashboard user={user} dbProgress={dbProgress} dbLevels={dbLevels} setActiveQuest={setActiveQuest} setView={setView} setIsQuizMode={setIsQuizMode} />}
+      {view === "dashboard" && user?.role === UserRole.STUDENT && (
+        <StudentDashboard user={user} dbUsers={dbUsers} dbProgress={dbProgress} dbLevels={dbLevels} setActiveQuest={setActiveQuest} setView={setView} setIsQuizMode={setIsQuizMode} />
+      )}
 
       {view === "dashboard" && (user?.role === UserRole.TEACHER || user?.role === UserRole.ADMIN) && (
         <TeacherDashboard dbUsers={dbUsers} dbLevels={dbLevels} onUpdateConfig={handleUpdateConfig} onRewardUser={handleRewardUser} systemConfig={systemConfig} showAlert={showAlert} />
