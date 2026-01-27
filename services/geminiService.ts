@@ -34,17 +34,23 @@ export async function generateChapterQuests(chapterId: string, chapterTitle: str
 
   try {
     const response = await ai.models.generateContent({
-      // Diubah ke Flash agar lebih stabil dan kuota lebih banyak
       model: "gemini-3-flash-preview",
       contents: `You are an expert English Curriculum Designer for Indonesian Junior High School (SMP Kelas 8). 
       Generate a sequence of ${questCount} English learning quests for the chapter "${chapterTitle}".
+      
+      SETIAP QUEST WAJIB MEMILIKI MATERI EDUKASI (CONTENT):
+      - Bagian 'content' HARUS diisi dengan materi pelajaran yang lengkap sebagai bahan bacaan siswa.
+      - Gunakan 'h1' untuk judul materi.
+      - Gunakan 'h2' untuk sub-judul.
+      - Gunakan 'p' untuk penjelasan detail (Gunakan campuran Bahasa Inggris dan Indonesia agar mudah dipahami).
+      - Gunakan 'list' untuk daftar kosakata (vocabulary) atau aturan tata bahasa (grammar rules).
       
       CRITICAL RULES FOR SCORING AND STRUCTURE:
       1. For 'tf' (True/False) questions: set 'correct' to "true" or "false" as a string.
       2. For 'mcq' (Multiple Choice) questions: set 'correct' to the index "0", "1", "2", or "3" as a string.
       3. Each individual quest must have EXACTLY ${questionsPerQuest} questions.
       4. Ensure MCQ options are relevant to the topic.
-      5. The content should be educational and formatted correctly.
+      5. 'content' (materi) tidak boleh kosong. Ini adalah bagian terpenting bagi siswa untuk belajar sebelum kuis.
       
       Return ONLY a raw JSON array.`,
       config: {
@@ -62,12 +68,13 @@ export async function generateChapterQuests(chapterId: string, chapterTitle: str
                 items: {
                   type: Type.OBJECT,
                   properties: {
-                    type: { type: Type.STRING },
-                    text: { type: Type.STRING },
-                    items: { type: Type.ARRAY, items: { type: Type.STRING } },
+                    type: { type: Type.STRING, description: "Must be one of: h1, h2, p, list" },
+                    text: { type: Type.STRING, description: "Text for h1, h2, or p" },
+                    items: { type: Type.ARRAY, items: { type: Type.STRING }, description: "Array of strings for type 'list'" },
                   },
                   required: ["type"],
                 },
+                description: "Array of educational content objects (the 'materi')",
               },
               questions: {
                 type: Type.ARRAY,
