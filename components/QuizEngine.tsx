@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Trophy, X, ArrowRight, CheckCircle2, Clock, RotateCcw, Award, Star, ThumbsUp, Frown, Loader2 } from "lucide-react";
+import { Trophy, X, ArrowRight, CheckCircle2, Clock, RotateCcw, Award, Star, ThumbsUp, Frown } from "lucide-react";
 import { Question } from "../types";
 
 interface QuizEngineProps {
@@ -12,38 +12,22 @@ const QuizEngine: React.FC<QuizEngineProps> = ({ questions, passingScore, onFini
   const [step, setStep] = useState(0);
   const [answers, setAnswers] = useState<any[]>([]);
   const [finished, setFinished] = useState(false);
-  const [isProcessing, setIsProcessing] = useState(false);
 
   const handleAnswer = (val: any) => {
-    if (isProcessing) return;
+    const updatedAnswers = [...answers, val];
+    setAnswers(updatedAnswers);
 
-    setIsProcessing(true);
-    // Use functional state update to ensure we use the latest answers array
-    setAnswers((prev) => {
-      const updated = [...prev, val];
-
-      // Navigate after state is set
-      setTimeout(() => {
-        if (step < questions.length - 1) {
-          setStep((prevStep) => prevStep + 1);
-          setIsProcessing(false);
-        } else {
-          setFinished(true);
-          setIsProcessing(false);
-        }
-      }, 400); // Slightly longer delay for clearer visual feedback
-
-      return updated;
-    });
+    if (step < questions.length - 1) {
+      setStep(step + 1);
+    } else {
+      setFinished(true);
+    }
   };
 
   if (finished) {
     const correctCount = answers.filter((ans, i) => {
-      // Very strict comparison
-      if (questions[i].type === "tf") {
-        return Boolean(ans) === Boolean(questions[i].correct);
-      }
-      return Number(ans) === Number(questions[i].correct);
+      // Kembali ke Strict Comparison (===)
+      return ans === questions[i].correct;
     }).length;
 
     const score = Math.round((correctCount / questions.length) * 100);
@@ -91,7 +75,7 @@ const QuizEngine: React.FC<QuizEngineProps> = ({ questions, passingScore, onFini
 
           <div className="space-y-4">
             {questions.map((q, i) => {
-              const isCorrect = q.type === "tf" ? Boolean(answers[i]) === Boolean(q.correct) : Number(answers[i]) === Number(q.correct);
+              const isCorrect = answers[i] === q.correct;
               return (
                 <div key={i} className={`p-6 rounded-[2rem] border-2 transition-all ${isCorrect ? "bg-emerald-950/10 border-emerald-500/20" : "bg-rose-950/10 border-rose-500/20"}`}>
                   <div className="flex justify-between items-start gap-4 mb-4">
@@ -173,7 +157,7 @@ const QuizEngine: React.FC<QuizEngineProps> = ({ questions, passingScore, onFini
         </div>
       </div>
 
-      <div className={`bg-slate-900 p-8 rounded-[3rem] border border-slate-800 shadow-sm relative overflow-hidden group transition-all ${isProcessing ? "opacity-40 cursor-wait" : "opacity-100"}`}>
+      <div className={`bg-slate-900 p-8 rounded-[3rem] border border-slate-800 shadow-sm relative overflow-hidden group transition-all`}>
         <div className="relative z-10">
           <h4 className="text-xl font-extrabold text-white leading-tight mb-10">{current.q}</h4>
           <div className="grid grid-cols-1 gap-4">
@@ -182,8 +166,7 @@ const QuizEngine: React.FC<QuizEngineProps> = ({ questions, passingScore, onFini
                 <button
                   key={i}
                   onClick={() => handleAnswer(i)}
-                  disabled={isProcessing}
-                  className="group relative p-6 bg-slate-950 border-2 border-slate-800 rounded-3xl text-left font-bold text-slate-300 hover:border-indigo-600 hover:bg-indigo-900/20 transition-all active:scale-[0.98] disabled:opacity-50"
+                  className="group relative p-6 bg-slate-950 border-2 border-slate-800 rounded-3xl text-left font-bold text-slate-300 hover:border-indigo-600 hover:bg-indigo-900/20 transition-all active:scale-[0.98]"
                 >
                   <div className="flex items-center gap-4">
                     <span className="w-10 h-10 flex-shrink-0 flex items-center justify-center bg-slate-900 border border-slate-800 rounded-xl text-xs uppercase font-black group-hover:bg-indigo-600 group-hover:text-white transition-colors">
@@ -197,16 +180,14 @@ const QuizEngine: React.FC<QuizEngineProps> = ({ questions, passingScore, onFini
               <div className="grid grid-cols-2 gap-6">
                 <button
                   onClick={() => handleAnswer(true)}
-                  disabled={isProcessing}
-                  className="group p-10 bg-slate-950 border-2 border-slate-800 rounded-[3rem] font-black uppercase text-emerald-500 hover:border-emerald-600 hover:bg-emerald-950 active:scale-95 shadow-sm flex flex-col items-center gap-3 transition-all disabled:opacity-50"
+                  className="group p-10 bg-slate-950 border-2 border-slate-800 rounded-[3rem] font-black uppercase text-emerald-500 hover:border-emerald-600 hover:bg-emerald-950 active:scale-95 shadow-sm flex flex-col items-center gap-3 transition-all"
                 >
                   <CheckCircle2 size={32} />
                   <span>True</span>
                 </button>
                 <button
                   onClick={() => handleAnswer(false)}
-                  disabled={isProcessing}
-                  className="group p-10 bg-slate-950 border-2 border-slate-800 rounded-[3rem] font-black uppercase text-rose-500 hover:border-rose-600 hover:bg-rose-950 active:scale-95 shadow-sm flex flex-col items-center gap-3 transition-all disabled:opacity-50"
+                  className="group p-10 bg-slate-950 border-2 border-slate-800 rounded-[3rem] font-black uppercase text-rose-500 hover:border-rose-600 hover:bg-rose-950 active:scale-95 shadow-sm flex flex-col items-center gap-3 transition-all"
                 >
                   <X size={32} />
                   <span>False</span>
@@ -215,11 +196,6 @@ const QuizEngine: React.FC<QuizEngineProps> = ({ questions, passingScore, onFini
             )}
           </div>
         </div>
-        {isProcessing && (
-          <div className="absolute inset-0 flex items-center justify-center bg-slate-900/40 backdrop-blur-[2px] z-20 rounded-[3rem]">
-            <Loader2 size={32} className="animate-spin text-indigo-500" />
-          </div>
-        )}
       </div>
 
       <div className="flex items-center justify-center gap-2 text-slate-600">
