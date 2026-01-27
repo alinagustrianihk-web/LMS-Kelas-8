@@ -7,13 +7,14 @@ export enum UserRole {
 
 export interface User {
   id: string;
-  email: string;
+  username: string; // Menggantikan email
   password?: string;
   name: string;
   role: UserRole;
   xp: number;
   streak?: number;
   lastCompletionDate?: string;
+  unlockedChapters?: string[];
 }
 
 export interface ContentItem {
@@ -31,6 +32,8 @@ export interface Question {
 
 export interface Quest {
   id: string;
+  chapterId: string;
+  chapterTitle: string;
   order: number;
   title: string;
   topic: string;
@@ -39,6 +42,15 @@ export interface Quest {
   imageUrl: string;
   content: ContentItem[];
   questions: Question[];
+  status?: 'published' | 'draft';
+}
+
+export interface Chapter {
+  id: string;
+  title: string;
+  description: string;
+  order: number;
+  totalQuests: number;
 }
 
 export interface Progress {
@@ -52,4 +64,5 @@ export interface SystemConfig {
   semester: string;
   year: string;
   maintenance: boolean;
+  announcement?: string;
 }

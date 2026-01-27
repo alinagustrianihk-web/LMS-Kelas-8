@@ -1,5 +1,5 @@
 {
-  "name": "quest8-lms---gamified-english-learning",
+  "name": "quest8-lms---gamified-english-learning-revisi-materi",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -9,11 +9,11 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@google/genai": "^1.38.0",
-    "firebase": "^12.8.0",
-    "lucide-react": "^0.563.0",
     "react": "^19.2.3",
-    "react-dom": "^19.2.3"
+    "react-dom": "^19.2.3",
+    "@google/genai": "^1.38.0",
+    "lucide-react": "^0.563.0",
+    "firebase": "^12.8.0"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",

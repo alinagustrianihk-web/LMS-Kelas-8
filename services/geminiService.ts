@@ -1,37 +1,90 @@
+import { GoogleGenAI, Type } from "@google/genai";
+import { Quest, ContentItem, Question } from "../types";
 
-import { GoogleGenAI } from "@google/genai";
-
-// Initialize AI client inside functions to follow the latest SDK integration patterns
 export async function askTutor(topic: string, question: string) {
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   try {
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
-      contents: `You are a helpful AI English Tutor for junior high school students. 
-      The current topic is: ${topic}. 
-      Student asks: "${question}"
-      Explain simply, clearly, and in a friendly way. Use a mix of Indonesian and English if necessary. Keep it encouraging.`,
-      config: {
-        temperature: 0.7,
-        topP: 0.9,
-      }
+      contents: `You are a helpful AI English Tutor for 8th-grade students. Topic: ${topic}. Question: "${question}". Explain simply with encouragement.`,
     });
     return response.text;
   } catch (error) {
-    console.error("Gemini Error:", error);
-    return "Maaf, Sensei sedang sibuk. Coba lagi nanti ya!";
+    return "Sensei sedang sibuk. Coba lagi nanti!";
   }
 }
 
-export async function generateNewQuestTopic() {
+export async function generateChapterQuests(chapterId: string, chapterTitle: string, count: number): Promise<Partial<Quest>[]> {
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   try {
     const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
-      contents: "Generate a new specific topic for an English Recount Text quest for 8th graders. Example: 'Personal Experience', 'Historical Events'. Just return the title.",
+      model: 'gemini-3-pro-preview',
+      contents: `Generate a sequence of ${count} English learning quests for 8th graders for the chapter "${chapterTitle}". 
+      Each quest MUST have:
+      1. A unique topic relevant to the chapter title.
+      2. Exactly 5 educational questions (mix of MCQ and True/False).
+      3. A short introductory content (h1 and p).
+      4. A rewardPoints value between 100-200.
+      
+      Return as a JSON array of objects.`,
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.ARRAY,
+          items: {
+            type: Type.OBJECT,
+            properties: {
+              title: { type: Type.STRING },
+              topic: { type: Type.STRING },
+              rewardPoints: { type: Type.NUMBER },
+              content: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    type: { type: Type.STRING },
+                    text: { type: Type.STRING }
+                  }
+                }
+              },
+              questions: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    type: { type: Type.STRING },
+                    q: { type: Type.STRING },
+                    a: { type: Type.ARRAY, items: { type: Type.STRING } },
+                    correct: { type: Type.NUMBER }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
     });
-    return response.text;
+
+    return JSON.parse(response.text);
   } catch (error) {
-    return "Random Journey";
+    console.error("Bulk Generation Error:", error);
+    return [];
+  }
+}
+
+export async function generateQuestImage(topic: string) {
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  try {
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash-image',
+      // Fix: Follow @google/genai guidelines for contents structure (use { parts: [...] })
+      contents: { parts: [{ text: `High-quality colorful 3D educational illustration for: ${topic}` }] },
+    });
+    for (const part of response.candidates[0].content.parts) {
+      if (part.inlineData) return `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
+    }
+    return null;
+  } catch (error) {
+    return null;
   }
 }
