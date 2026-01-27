@@ -39,6 +39,7 @@ import {
   Globe,
   LockIcon,
   ChevronRight,
+  Zap,
 } from "lucide-react";
 import { INITIAL_CURRICULUM, DEFAULT_USERS, CHAPTERS } from "./constants.tsx";
 import { User, UserRole, Quest, Progress, SystemConfig, Chapter, Question } from "./types.ts";
@@ -47,6 +48,18 @@ import QuizEngine from "./components/QuizEngine.tsx";
 import AISensei from "./components/AISensei.tsx";
 import { dbService } from "./services/dbService.ts";
 import { generateQuestImage, generateChapterQuests } from "./services/geminiService.ts";
+
+// Declare window extension for aistudio with the correct AIStudio interface to avoid declaration conflicts
+declare global {
+  interface AIStudio {
+    hasSelectedApiKey: () => Promise<boolean>;
+    openSelectKey: () => Promise<void>;
+  }
+
+  interface Window {
+    aistudio: AIStudio;
+  }
+}
 
 // --- Sub-components (ContentRenderer, StudentDashboard, TeacherDashboard) ---
 
@@ -216,12 +229,35 @@ const TeacherDashboard = ({ dbUsers, dbProgress, dbLevels, onUpdateQuest, onUpda
   const [managedChapterId, setManagedChapterId] = useState<string | null>(null);
   const [announcement, setAnnouncement] = useState(systemConfig.announcement || "");
   const [generatingChapter, setGeneratingChapter] = useState<string | null>(null);
+  const [hasApiKey, setHasApiKey] = useState(false);
+
+  useEffect(() => {
+    const checkKey = async () => {
+      const selected = await window.aistudio.hasSelectedApiKey();
+      setHasApiKey(selected);
+    };
+    checkKey();
+  }, []);
+
+  const handleConnectKey = async () => {
+    try {
+      await window.aistudio.openSelectKey();
+      setHasApiKey(true);
+      showAlert("AI Key connected successfully!");
+    } catch (e) {
+      showAlert("Failed to connect key.");
+    }
+  };
 
   const handleBulkGenerate = async (chapter: Chapter) => {
-    if (!confirm(`Generate ${chapter.totalQuests} AI Quests for ${chapter.title}? \n\nNote: Ini mungkin memakan waktu 1-2 menit karena AI sedang merancang kurikulum lengkap.`)) return;
+    if (!hasApiKey) {
+      return handleConnectKey();
+    }
+
+    if (!confirm(`Generate ${chapter.totalQuests} AI Quests for ${chapter.title}? \n\nNote: AI akan merancang konten & soal otomatis.`)) return;
 
     setGeneratingChapter(chapter.id);
-    showAlert("AI Sensei is designing the curriculum... Please wait.");
+    showAlert("AI Sensei is designing the curriculum...");
 
     try {
       const generatedData = await generateChapterQuests(chapter.id, chapter.title, chapter.totalQuests);
@@ -232,18 +268,16 @@ const TeacherDashboard = ({ dbUsers, dbProgress, dbLevels, onUpdateQuest, onUpda
 
       for (let i = 0; i < generatedData.length; i++) {
         const qData = generatedData[i];
-
-        // Transform the AI output to our Quest structure
         const fullQuest: Quest = {
           id: `q_${chapter.id}_${i}_${Date.now()}`,
           chapterId: chapter.id,
           chapterTitle: chapter.title.split(": ")[1],
           order: i + 1,
           title: qData.title || `Quest ${i + 1}`,
-          topic: qData.topic || "General Mastery",
+          topic: qData.topic || "English Lesson",
           passingScore: 80,
           rewardPoints: qData.rewardPoints || 150,
-          imageUrl: "", // Initial empty, will update below
+          imageUrl: "",
           content: qData.content || [],
           questions: (qData.questions || []).map((ques: any) => ({
             ...ques,
@@ -251,15 +285,19 @@ const TeacherDashboard = ({ dbUsers, dbProgress, dbLevels, onUpdateQuest, onUpda
           })),
           status: "draft",
         };
-
         await dbService.saveQuest(fullQuest);
       }
 
-      showAlert("Success! Curriculum generated in Draft mode.");
-      setTimeout(() => window.location.reload(), 2000);
+      showAlert("Success! Check Individual Quests for the drafts.");
+      setTimeout(() => window.location.reload(), 1500);
     } catch (e: any) {
       console.error(e);
-      showAlert(`Generation failed: ${e.message || "Unknown error"}. Try again.`);
+      if (e.message?.includes("Requested entity was not found")) {
+        showAlert("API Key invalid. Please reconnect.");
+        setHasApiKey(false);
+      } else {
+        showAlert(`Generation failed: ${e.message || "Unknown error"}`);
+      }
     } finally {
       setGeneratingChapter(null);
     }
@@ -365,16 +403,22 @@ const TeacherDashboard = ({ dbUsers, dbProgress, dbLevels, onUpdateQuest, onUpda
           </h2>
           <p className="text-xs font-bold text-slate-500 uppercase mt-2">Classroom Orchestration</p>
         </div>
-        <div className="flex gap-2 bg-slate-900 p-2 rounded-2xl border border-slate-800">
-          {["students", "chapters", "settings"].map((t) => (
-            <button
-              key={t}
-              onClick={() => setActiveTab(t as any)}
-              className={`px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === t ? "bg-indigo-600 text-white" : "text-slate-500 hover:text-slate-300"}`}
-            >
-              {t}
-            </button>
-          ))}
+        <div className="flex items-center gap-4">
+          <div className={`flex items-center gap-3 px-6 py-3 rounded-2xl border transition-all ${hasApiKey ? "bg-emerald-950/20 border-emerald-500/30" : "bg-rose-950/20 border-rose-500/30"}`}>
+            <Zap size={16} className={hasApiKey ? "text-emerald-500" : "text-rose-500"} />
+            <span className={`text-[10px] font-black uppercase tracking-widest ${hasApiKey ? "text-emerald-400" : "text-rose-400"}`}>AI Engine: {hasApiKey ? "Connected" : "Disconnected"}</span>
+          </div>
+          <div className="flex gap-2 bg-slate-900 p-2 rounded-2xl border border-slate-800">
+            {["students", "chapters", "settings"].map((t) => (
+              <button
+                key={t}
+                onClick={() => setActiveTab(t as any)}
+                className={`px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === t ? "bg-indigo-600 text-white" : "text-slate-500 hover:text-slate-300"}`}
+              >
+                {t}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -458,10 +502,12 @@ const TeacherDashboard = ({ dbUsers, dbProgress, dbLevels, onUpdateQuest, onUpda
                     <button
                       onClick={() => handleBulkGenerate(chap)}
                       disabled={generatingChapter === chap.id}
-                      className="w-full py-4 bg-indigo-600 text-white rounded-[1.5rem] font-black uppercase text-[10px] tracking-widest shadow-xl flex items-center justify-center gap-2 hover:bg-indigo-700 disabled:opacity-50"
+                      className={`w-full py-4 rounded-[1.5rem] font-black uppercase text-[10px] tracking-widest shadow-xl flex items-center justify-center gap-2 transition-all ${
+                        !hasApiKey ? "bg-rose-600 hover:bg-rose-700 text-white" : "bg-indigo-600 hover:bg-indigo-700 text-white"
+                      } disabled:opacity-50`}
                     >
-                      {generatingChapter === chap.id ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
-                      Auto-Generate Full Chapter Quests
+                      {generatingChapter === chap.id ? <Loader2 size={16} className="animate-spin" /> : !hasApiKey ? <Key size={16} /> : <Sparkles size={16} />}
+                      {!hasApiKey ? "Connect API Key First" : "Auto-Generate Full Chapter"}
                     </button>
                   )}
                   <button
@@ -479,6 +525,26 @@ const TeacherDashboard = ({ dbUsers, dbProgress, dbLevels, onUpdateQuest, onUpda
 
       {activeTab === "settings" && (
         <div className="max-w-xl mx-auto space-y-8">
+          <div className="bg-slate-900 p-10 rounded-[3rem] border border-slate-800 shadow-xl space-y-6">
+            <h3 className="text-xl font-black text-white italic">AI Configuration</h3>
+            <p className="text-xs text-slate-500 font-bold leading-relaxed">
+              To use AI Generation, you must connect a project with billing enabled.
+              <a href="https://ai.google.dev/gemini-api/docs/billing" target="_blank" className="text-indigo-400 ml-1 hover:underline">
+                Read Billing Docs
+              </a>
+              .
+            </p>
+            <button
+              onClick={handleConnectKey}
+              className={`w-full py-5 rounded-3xl font-black uppercase text-xs flex items-center justify-center gap-3 transition-all ${
+                hasApiKey ? "bg-emerald-950 text-emerald-400 border border-emerald-900/50" : "bg-indigo-600 text-white shadow-xl shadow-indigo-900/20"
+              }`}
+            >
+              {hasApiKey ? <CheckCircle2 size={18} /> : <Key size={18} />}
+              {hasApiKey ? "API Key Connected" : "Connect Paid API Key"}
+            </button>
+          </div>
+
           <div className="bg-slate-900 p-10 rounded-[3rem] border border-slate-800 shadow-xl space-y-6">
             <h3 className="text-xl font-black text-white italic">Broadcast Center</h3>
             <textarea
