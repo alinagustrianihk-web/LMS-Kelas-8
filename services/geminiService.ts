@@ -1,38 +1,40 @@
+
 import { GoogleGenAI, Type } from "@google/genai";
 import { Quest, ContentItem, Question } from "../types";
 
+// Helper untuk mengambil API Key dari storage browser
+const getStoredApiKey = () => localStorage.getItem('quest8_ai_key') || '';
+
 export async function askTutor(topic: string, question: string) {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const apiKey = getStoredApiKey();
+  if (!apiKey) return "Sensei butuh API Key untuk menjawab. Silakan minta bantuan Guru atau Admin untuk mengaturnya di Settings.";
+  
+  const ai = new GoogleGenAI({ apiKey });
   try {
     const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
+      model: 'gemini-3-flash-preview',
       contents: `You are a helpful AI English Tutor for 8th-grade students. Topic: ${topic}. Question: "${question}". Explain simply with encouragement.`,
     });
     return response.text;
   } catch (error) {
-    return "Sensei sedang sibuk. Coba lagi nanti!";
+    console.error("Tutor Error:", error);
+    return "Sensei sedang bermeditasi (Error). Pastikan API Key benar dan coba lagi!";
   }
 }
 
-/**
- * Helper to clean JSON string from potential markdown wrappers
- */
 function cleanJsonString(str: string): string {
-  // Remove markdown code blocks if present
-  let cleaned = str
-    .replace(/```json/g, "")
-    .replace(/```/g, "")
-    .trim();
+  let cleaned = str.replace(/```json/g, "").replace(/```/g, "").trim();
   return cleaned;
 }
 
 export async function generateChapterQuests(chapterId: string, chapterTitle: string, count: number): Promise<Partial<Quest>[]> {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const apiKey = getStoredApiKey();
+  if (!apiKey) throw new Error("API Key belum diatur. Silakan atur di tab Settings.");
+
+  const ai = new GoogleGenAI({ apiKey });
   try {
-    // We use gemini-3-pro-preview for complex curriculum design
-    // Adding thinkingBudget to ensure logical progression between quests
     const response = await ai.models.generateContent({
-      model: "gemini-3-pro-preview",
+      model: 'gemini-3-pro-preview',
       contents: `You are an expert English Curriculum Designer. 
       Generate a sequence of ${count} English learning quests for 8th-grade students for the chapter "${chapterTitle}".
       
@@ -50,65 +52,67 @@ export async function generateChapterQuests(chapterId: string, chapterTitle: str
           items: {
             type: Type.OBJECT,
             properties: {
-              title: { type: Type.STRING, description: "Quest title (e.g. 'Intro to Memories')" },
-              topic: { type: Type.STRING, description: "Short topic name" },
+              title: { type: Type.STRING },
+              topic: { type: Type.STRING },
               rewardPoints: { type: Type.NUMBER },
               content: {
                 type: Type.ARRAY,
                 items: {
                   type: Type.OBJECT,
                   properties: {
-                    type: { type: Type.STRING, description: "h1, h2, p, or list" },
+                    type: { type: Type.STRING },
                     text: { type: Type.STRING },
-                    items: { type: Type.ARRAY, items: { type: Type.STRING }, description: "Only for type list" },
+                    items: { type: Type.ARRAY, items: { type: Type.STRING } }
                   },
-                  required: ["type"],
-                },
+                  required: ["type"]
+                }
               },
               questions: {
                 type: Type.ARRAY,
                 items: {
                   type: Type.OBJECT,
                   properties: {
-                    type: { type: Type.STRING, description: "mcq or tf" },
-                    q: { type: Type.STRING, description: "The question text" },
-                    a: { type: Type.ARRAY, items: { type: Type.STRING }, description: "Options for mcq" },
-                    correct: { type: Type.NUMBER, description: "Index of correct answer for mcq, or 1 for True, 0 for False if tf" },
+                    type: { type: Type.STRING },
+                    q: { type: Type.STRING },
+                    a: { type: Type.ARRAY, items: { type: Type.STRING } },
+                    correct: { type: Type.NUMBER }
                   },
-                  required: ["type", "q", "correct"],
-                },
-              },
+                  required: ["type", "q", "correct"]
+                }
+              }
             },
-            required: ["title", "topic", "questions", "content"],
-          },
-        },
-      },
+            required: ["title", "topic", "questions", "content"]
+          }
+        }
+      }
     });
 
     const rawText = response.text;
     if (!rawText) throw new Error("Empty AI response");
-
+    
     return JSON.parse(cleanJsonString(rawText));
   } catch (error) {
     console.error("Bulk Generation Error:", error);
-    // Rethrow to be caught by the UI
     throw error;
   }
 }
 
 export async function generateQuestImage(topic: string) {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const apiKey = getStoredApiKey();
+  if (!apiKey) return null;
+
+  const ai = new GoogleGenAI({ apiKey });
   try {
     const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash-image",
+      model: 'gemini-2.5-flash-image',
       contents: { parts: [{ text: `High-quality colorful 3D educational cinematic illustration for an English learning app. Topic: ${topic}. Style: Pixar-like, vibrant, clear for students.` }] },
       config: {
         imageConfig: {
-          aspectRatio: "16:9",
-        },
-      },
+          aspectRatio: "16:9"
+        }
+      }
     });
-
+    
     for (const part of response.candidates[0].content.parts) {
       if (part.inlineData) return `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
     }

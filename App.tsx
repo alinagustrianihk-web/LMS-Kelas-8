@@ -40,6 +40,7 @@ import {
   LockIcon,
   ChevronRight,
   Zap,
+  ExternalLink,
 } from "lucide-react";
 import { INITIAL_CURRICULUM, DEFAULT_USERS, CHAPTERS } from "./constants.tsx";
 import { User, UserRole, Quest, Progress, SystemConfig, Chapter, Question } from "./types.ts";
@@ -218,7 +219,20 @@ const TeacherDashboard = ({ dbUsers, dbProgress, dbLevels, onUpdateQuest, onUpda
   const [announcement, setAnnouncement] = useState(systemConfig.announcement || "");
   const [generatingChapter, setGeneratingChapter] = useState<string | null>(null);
 
+  const [apiKey, setApiKey] = useState(localStorage.getItem("quest8_ai_key") || "");
+  const [showKey, setShowKey] = useState(false);
+
+  const handleSaveApiKey = () => {
+    localStorage.setItem("quest8_ai_key", apiKey.trim());
+    showAlert("Magic Key (AI) has been updated!");
+  };
+
   const handleBulkGenerate = async (chapter: Chapter) => {
+    if (!apiKey.trim()) {
+      setActiveTab("settings");
+      return showAlert("Adventurer! Hubungkan API Key di Settings terlebih dahulu.");
+    }
+
     if (!confirm(`Generate ${chapter.totalQuests} AI Quests for ${chapter.title}? \n\nNote: Sistem akan menggunakan Engine AI otomatis.`)) return;
 
     setGeneratingChapter(chapter.id);
@@ -257,7 +271,7 @@ const TeacherDashboard = ({ dbUsers, dbProgress, dbLevels, onUpdateQuest, onUpda
       setTimeout(() => window.location.reload(), 1500);
     } catch (e: any) {
       console.error(e);
-      showAlert(`Generation failed: ${e.message || "Unknown error"}`);
+      showAlert(`Generation failed: ${e.message || "Pastikan API Key benar!"}`);
     } finally {
       setGeneratingChapter(null);
     }
@@ -476,9 +490,46 @@ const TeacherDashboard = ({ dbUsers, dbProgress, dbLevels, onUpdateQuest, onUpda
       )}
 
       {activeTab === "settings" && (
-        <div className="max-w-xl mx-auto space-y-8">
+        <div className="max-w-2xl mx-auto space-y-8">
+          {/* AI Key Configuration Card */}
+          <div className="bg-slate-900 p-10 rounded-[3rem] border border-slate-800 shadow-xl space-y-6 relative overflow-hidden group">
+            <div className="absolute top-0 right-0 p-10 opacity-5 group-hover:rotate-12 transition-all">
+              <Zap size={100} className="text-indigo-400" />
+            </div>
+            <div className="relative">
+              <div className="flex items-center gap-4 mb-2">
+                <div className={`w-3 h-3 rounded-full ${apiKey ? "bg-emerald-500 animate-pulse" : "bg-rose-500"}`} />
+                <h3 className="text-xl font-black text-white italic uppercase">AI Sensei Engine</h3>
+              </div>
+              <p className="text-xs text-slate-500 font-bold leading-relaxed mb-6">Hubungkan "Magic Key" gratis dari Google AI Studio untuk mengaktifkan fitur Auto-Generate Kurikulum dan Tutor AI.</p>
+
+              <div className="space-y-4">
+                <a href="https://aistudio.google.com/app/apikey" target="_blank" className="flex items-center gap-2 text-[10px] font-black text-indigo-400 uppercase tracking-widest hover:text-white transition-colors">
+                  <ExternalLink size={14} /> Ambil API Key Gratis di Sini
+                </a>
+
+                <div className="relative">
+                  <input
+                    type={showKey ? "text" : "password"}
+                    value={apiKey}
+                    onChange={(e) => setApiKey(e.target.value)}
+                    placeholder="Tempel API Key di sini..."
+                    className="w-full px-6 py-4 bg-slate-950 border border-slate-800 rounded-2xl text-white font-mono text-sm outline-none focus:border-indigo-600 transition-all"
+                  />
+                  <button onClick={() => setShowKey(!showKey)} className="absolute right-4 top-4 text-slate-500 hover:text-slate-300">
+                    {showKey ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
+
+                <button onClick={handleSaveApiKey} className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl shadow-indigo-900/20 active:scale-95 transition-all">
+                  Simpan Konfigurasi
+                </button>
+              </div>
+            </div>
+          </div>
+
           <div className="bg-slate-900 p-10 rounded-[3rem] border border-slate-800 shadow-xl space-y-6">
-            <h3 className="text-xl font-black text-white italic">Broadcast Center</h3>
+            <h3 className="text-xl font-black text-white italic uppercase">Broadcast Center</h3>
             <textarea
               value={announcement}
               onChange={(e) => setAnnouncement(e.target.value)}
