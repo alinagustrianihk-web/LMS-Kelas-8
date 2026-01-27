@@ -186,6 +186,17 @@ const TeacherDashboard = ({ dbUsers, dbLevels, onUpdateConfig, onRewardUser, sys
   const [teacherApiKey, setTeacherApiKey] = useState("");
   const [questionsPerQuestMap, setQuestionsPerQuestMap] = useState<Record<string, number>>({});
 
+  const getFriendlyErrorMessage = (error: any) => {
+    const msg = error?.message || String(error);
+    if (msg.includes("429") || msg.includes("RESOURCE_EXHAUSTED")) {
+      return "Kuota Limit Terlampaui (429). Silakan tunggu beberapa menit atau gunakan API Key berbayar Anda sendiri di kolom input.";
+    }
+    if (msg.includes("API_KEY_INVALID")) {
+      return "API Key yang Anda masukkan tidak valid. Periksa kembali.";
+    }
+    return `Gagal: ${msg.substring(0, 100)}...`;
+  };
+
   const handleBulkGenerate = async (chapter: Chapter) => {
     const qCount = questionsPerQuestMap[chapter.id] || 5;
     if (!confirm(`Generate ${chapter.totalQuests} AI Quests for ${chapter.title} with ${qCount} questions each? \n\nNote: Sistem akan menggunakan Engine AI otomatis.`)) return;
@@ -223,7 +234,7 @@ const TeacherDashboard = ({ dbUsers, dbLevels, onUpdateConfig, onRewardUser, sys
       setTimeout(() => window.location.reload(), 1500);
     } catch (e: any) {
       console.error(e);
-      showAlert(`Generation failed: ${e.message || "Pastikan konfigurasi AI benar!"}`);
+      showAlert(getFriendlyErrorMessage(e));
     } finally {
       setGeneratingChapter(null);
     }

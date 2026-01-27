@@ -34,7 +34,8 @@ export async function generateChapterQuests(chapterId: string, chapterTitle: str
 
   try {
     const response = await ai.models.generateContent({
-      model: "gemini-3-pro-preview",
+      // Diubah ke Flash agar lebih stabil dan kuota lebih banyak
+      model: "gemini-3-flash-preview",
       contents: `You are an expert English Curriculum Designer for Indonesian Junior High School (SMP Kelas 8). 
       Generate a sequence of ${questCount} English learning quests for the chapter "${chapterTitle}".
       
