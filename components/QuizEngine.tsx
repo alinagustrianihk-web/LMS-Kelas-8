@@ -24,10 +24,16 @@ const QuizEngine: React.FC<QuizEngineProps> = ({ questions, passingScore, onFini
     }
   };
 
+  const isCorrect = (userAnswer: any, correctAnswer: any, type: "mcq" | "tf") => {
+    if (type === "tf") {
+      return Boolean(userAnswer) === Boolean(correctAnswer);
+    }
+    return Number(userAnswer) === Number(correctAnswer);
+  };
+
   if (finished) {
     const correctCount = answers.filter((ans, i) => {
-      // Kembali ke Strict Comparison (===)
-      return ans === questions[i].correct;
+      return isCorrect(ans, questions[i].correct, questions[i].type);
     }).length;
 
     const score = Math.round((correctCount / questions.length) * 100);
@@ -75,15 +81,15 @@ const QuizEngine: React.FC<QuizEngineProps> = ({ questions, passingScore, onFini
 
           <div className="space-y-4">
             {questions.map((q, i) => {
-              const isCorrect = answers[i] === q.correct;
+              const correct = isCorrect(answers[i], q.correct, q.type);
               return (
-                <div key={i} className={`p-6 rounded-[2rem] border-2 transition-all ${isCorrect ? "bg-emerald-950/10 border-emerald-500/20" : "bg-rose-950/10 border-rose-500/20"}`}>
+                <div key={i} className={`p-6 rounded-[2rem] border-2 transition-all ${correct ? "bg-emerald-950/10 border-emerald-500/20" : "bg-rose-950/10 border-rose-500/20"}`}>
                   <div className="flex justify-between items-start gap-4 mb-4">
                     <div className="flex items-center gap-3">
-                      <div className={`w-6 h-6 rounded-lg flex items-center justify-center text-[10px] font-black ${isCorrect ? "bg-emerald-500" : "bg-rose-500"}`}>{i + 1}</div>
+                      <div className={`w-6 h-6 rounded-lg flex items-center justify-center text-[10px] font-black ${correct ? "bg-emerald-500" : "bg-rose-500"}`}>{i + 1}</div>
                       <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Pertanyaan</span>
                     </div>
-                    {isCorrect ? (
+                    {correct ? (
                       <div className="text-emerald-500 font-black text-[10px] uppercase tracking-widest flex items-center gap-1.5">
                         <CheckCircle2 size={14} /> Correct
                       </div>
@@ -95,11 +101,11 @@ const QuizEngine: React.FC<QuizEngineProps> = ({ questions, passingScore, onFini
                   </div>
                   <p className="text-slate-100 font-bold text-sm mb-6 leading-relaxed">{q.q}</p>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div className={`p-4 rounded-2xl border ${isCorrect ? "bg-emerald-950/30 border-emerald-500/20" : "bg-rose-950/30 border-rose-500/20"}`}>
+                    <div className={`p-4 rounded-2xl border ${correct ? "bg-emerald-950/30 border-emerald-500/20" : "bg-rose-950/30 border-rose-500/20"}`}>
                       <p className="text-[8px] font-black uppercase text-slate-500 mb-2">Jawaban Kamu</p>
-                      <p className={`text-xs font-black ${isCorrect ? "text-emerald-400" : "text-rose-400"}`}>{q.type === "mcq" ? q.a?.[Number(answers[i])] || answers[i] : answers[i] ? "True" : "False"}</p>
+                      <p className={`text-xs font-black ${correct ? "text-emerald-400" : "text-rose-400"}`}>{q.type === "mcq" ? q.a?.[Number(answers[i])] || answers[i] : answers[i] ? "True" : "False"}</p>
                     </div>
-                    {!isCorrect && (
+                    {!correct && (
                       <div className="p-4 rounded-2xl border bg-emerald-950/20 border-emerald-500/20">
                         <p className="text-[8px] font-black uppercase text-emerald-500/50 mb-2">Jawaban Benar</p>
                         <p className="text-xs font-black text-emerald-400">{q.type === "mcq" ? q.a?.[Number(q.correct)] : q.correct ? "True" : "False"}</p>

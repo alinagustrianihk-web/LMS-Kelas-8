@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { CheckCircle2, AlertCircle, ChevronLeft, ArrowRight, Trash2, Loader2, Bot, Layers, Map, Settings2, Sparkles, LogIn, Zap, Gift, Globe, LockIcon, Award, User as UserIcon, UserPlus } from "lucide-react";
+import { CheckCircle2, AlertCircle, ChevronLeft, ArrowRight, Trash2, Loader2, Bot, Layers, Map, Settings2, Sparkles, LogIn, Zap, Gift, Globe, LockIcon, Award, User as UserIcon, UserPlus, Key, ListChecks } from "lucide-react";
 import { INITIAL_CURRICULUM, DEFAULT_USERS, CHAPTERS } from "./constants.tsx";
 import { User, UserRole, Quest, Progress, SystemConfig, Chapter } from "./types.ts";
 import Layout from "./components/Layout.tsx";
@@ -183,15 +183,18 @@ const TeacherDashboard = ({ dbUsers, dbLevels, onUpdateConfig, onRewardUser, sys
   const [managedChapterId, setManagedChapterId] = useState<string | null>(null);
   const [announcement, setAnnouncement] = useState(systemConfig.announcement || "");
   const [generatingChapter, setGeneratingChapter] = useState<string | null>(null);
+  const [teacherApiKey, setTeacherApiKey] = useState("");
+  const [questionsPerQuestMap, setQuestionsPerQuestMap] = useState<Record<string, number>>({});
 
   const handleBulkGenerate = async (chapter: Chapter) => {
-    if (!confirm(`Generate ${chapter.totalQuests} AI Quests for ${chapter.title}? \n\nNote: Sistem akan menggunakan Engine AI otomatis.`)) return;
+    const qCount = questionsPerQuestMap[chapter.id] || 5;
+    if (!confirm(`Generate ${chapter.totalQuests} AI Quests for ${chapter.title} with ${qCount} questions each? \n\nNote: Sistem akan menggunakan Engine AI otomatis.`)) return;
 
     setGeneratingChapter(chapter.id);
     showAlert("AI Sensei is designing the curriculum...");
 
     try {
-      const generatedData = await generateChapterQuests(chapter.id, chapter.title, chapter.totalQuests);
+      const generatedData = await generateChapterQuests(chapter.id, chapter.title, chapter.totalQuests, teacherApiKey, qCount);
 
       if (!generatedData || generatedData.length === 0) {
         throw new Error("AI returned no data.");
@@ -418,6 +421,8 @@ const TeacherDashboard = ({ dbUsers, dbLevels, onUpdateConfig, onRewardUser, sys
             const chapQuests = dbLevels.filter((q: any) => q.chapterId === chap.id);
             const isPublished = chapQuests.length > 0 && chapQuests.every((q: any) => q.status === "published");
             const hasDrafts = chapQuests.some((q: any) => q.status === "draft");
+            const qCount = questionsPerQuestMap[chap.id] || 5;
+            const isRestricted = chap.order >= 2;
 
             return (
               <div key={chap.id} className="bg-slate-900 p-7 md:p-10 rounded-[2rem] md:rounded-[3rem] border border-slate-800 shadow-xl space-y-6 flex flex-col justify-between group hover:border-indigo-600/30 transition-all">
@@ -448,7 +453,66 @@ const TeacherDashboard = ({ dbUsers, dbLevels, onUpdateConfig, onRewardUser, sys
                   </p>
                 </div>
 
-                <div className="pt-6 border-t border-slate-800 flex flex-col gap-3">
+                <div className="pt-6 border-t border-slate-800 flex flex-col gap-4">
+                  {/* API Key Input Row */}
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center px-1">
+                      <div className="flex items-center gap-1.5">
+                        <Key size={10} className="text-indigo-500" />
+                        <span className="text-[9px] font-black uppercase text-slate-500 tracking-widest">Gemini API Key</span>
+                      </div>
+                      <a href="https://ai.google.dev/gemini-api/docs/api-key" target="_blank" rel="noopener noreferrer" className="text-[8px] font-bold text-indigo-400 hover:underline underline-offset-2">
+                        get API Key here
+                      </a>
+                    </div>
+                    <input
+                      type="password"
+                      placeholder="Optional: Enter key to bypass limit..."
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-[10px] text-slate-300 focus:border-indigo-600 outline-none transition-all placeholder:text-slate-700"
+                      onChange={(e) => setTeacherApiKey(e.target.value)}
+                      value={teacherApiKey}
+                    />
+                  </div>
+
+                  {/* Question Count Control */}
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center px-1">
+                      <div className="flex items-center gap-1.5">
+                        <ListChecks size={10} className="text-indigo-500" />
+                        <span className="text-[9px] font-black uppercase text-slate-500 tracking-widest">Questions Per Quest</span>
+                      </div>
+                      {isRestricted && <span className="text-[8px] font-bold text-amber-500/70 uppercase">Max 5 (Ch. 2+)</span>}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="number"
+                        min="1"
+                        max={isRestricted ? "5" : "15"}
+                        className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-[10px] text-white focus:border-indigo-600 outline-none transition-all"
+                        value={qCount}
+                        onChange={(e) => {
+                          const val = parseInt(e.target.value);
+                          const limit = isRestricted ? 5 : 15;
+                          setQuestionsPerQuestMap({ ...questionsPerQuestMap, [chap.id]: isNaN(val) ? 1 : Math.min(Math.max(1, val), limit) });
+                        }}
+                      />
+                      <div className="flex flex-col gap-1">
+                        <button
+                          onClick={() => setQuestionsPerQuestMap({ ...questionsPerQuestMap, [chap.id]: Math.min(qCount + 1, isRestricted ? 5 : 15) })}
+                          className="p-1 bg-slate-950 border border-slate-800 rounded-md text-slate-400 hover:text-white transition-colors"
+                        >
+                          <ArrowRight size={10} className="-rotate-90" />
+                        </button>
+                        <button
+                          onClick={() => setQuestionsPerQuestMap({ ...questionsPerQuestMap, [chap.id]: Math.max(qCount - 1, 1) })}
+                          className="p-1 bg-slate-950 border border-slate-800 rounded-md text-slate-400 hover:text-white transition-colors"
+                        >
+                          <ArrowRight size={10} className="rotate-90" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
                   {chapQuests.length < chap.totalQuests && (
                     <button
                       onClick={() => handleBulkGenerate(chap)}

@@ -26,20 +26,24 @@ function cleanJsonString(str: string): string {
 }
 
 /**
- * Bulk generate quests for a chapter using original simple prompt.
+ * Bulk generate quests for a chapter using optional API key and custom question count per quest.
  */
-export async function generateChapterQuests(chapterId: string, chapterTitle: string, count: number): Promise<Partial<Quest>[]> {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+export async function generateChapterQuests(chapterId: string, chapterTitle: string, questCount: number, apiKey?: string, questionsPerQuest: number = 5): Promise<Partial<Quest>[]> {
+  const activeKey = apiKey && apiKey.trim() !== "" ? apiKey : process.env.API_KEY;
+  const ai = new GoogleGenAI({ apiKey: activeKey });
+
   try {
     const response = await ai.models.generateContent({
       model: "gemini-3-pro-preview",
       contents: `You are an expert English Curriculum Designer for Indonesian Junior High School (SMP Kelas 8). 
-      Generate a sequence of ${count} English learning quests for the chapter "${chapterTitle}".
+      Generate a sequence of ${questCount} English learning quests for the chapter "${chapterTitle}".
       
-      RULES:
-      1. For 'tf' questions: 'correct' must be boolean.
-      2. For 'mcq' questions: 'correct' must be the index (0-3).
-      3. Each quest must have 5 questions.
+      CRITICAL RULES FOR SCORING AND STRUCTURE:
+      1. For 'tf' (True/False) questions: set 'correct' to "true" or "false" as a string.
+      2. For 'mcq' (Multiple Choice) questions: set 'correct' to the index "0", "1", "2", or "3" as a string.
+      3. Each individual quest must have EXACTLY ${questionsPerQuest} questions.
+      4. Ensure MCQ options are relevant to the topic.
+      5. The content should be educational and formatted correctly.
       
       Return ONLY a raw JSON array.`,
       config: {
@@ -72,7 +76,7 @@ export async function generateChapterQuests(chapterId: string, chapterTitle: str
                     type: { type: Type.STRING },
                     q: { type: Type.STRING },
                     a: { type: Type.ARRAY, items: { type: Type.STRING } },
-                    correct: { type: Type.BOOLEAN },
+                    correct: { type: Type.STRING, description: "The correct answer index for mcq or 'true'/'false' for tf" },
                   },
                   required: ["type", "q", "correct"],
                 },
@@ -90,11 +94,20 @@ export async function generateChapterQuests(chapterId: string, chapterTitle: str
     const parsed = JSON.parse(cleanJsonString(rawText));
     return parsed.map((q: any) => ({
       ...q,
-      questions: q.questions.map((ques: any) => ({
-        ...ques,
-        // Balik ke casting standar awal
-        correct: ques.type === "tf" ? String(ques.correct) === "true" : Number(ques.correct),
-      })),
+      questions: q.questions.map((ques: any) => {
+        let normalizedCorrect: any;
+        if (ques.type === "tf") {
+          normalizedCorrect = String(ques.correct).toLowerCase() === "true";
+        } else {
+          normalizedCorrect = parseInt(String(ques.correct), 10);
+          if (isNaN(normalizedCorrect)) normalizedCorrect = 0;
+        }
+
+        return {
+          ...ques,
+          correct: normalizedCorrect,
+        };
+      }),
     }));
   } catch (error: any) {
     console.error("Bulk Generation Error:", error);
