@@ -1,55 +1,52 @@
 import { GoogleGenAI, Type } from "@google/genai";
-import { Quest, ContentItem, Question } from "../types";
+import { Quest, Question } from "../types";
 
-// Helper untuk mengambil API Key dari storage browser
-const getStoredApiKey = () => localStorage.getItem("quest8_ai_key") || "";
-
+/**
+ * AI English Tutor assistant using Gemini.
+ * Directly uses process.env.API_KEY for initialization as per guidelines.
+ */
 export async function askTutor(topic: string, question: string) {
-  const apiKey = getStoredApiKey();
-  if (!apiKey) return "Sensei butuh API Key untuk menjawab. Silakan minta bantuan Guru atau Admin untuk mengaturnya di Settings.";
-
-  const ai = new GoogleGenAI({ apiKey });
+  // Use named parameter for apiKey and process.env.API_KEY directly
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   try {
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
       contents: `You are a helpful AI English Tutor for 8th-grade students. Topic: ${topic}. Question: "${question}". Explain simply with encouragement.`,
     });
+    // response.text is a property, not a method
     return response.text;
   } catch (error) {
     console.error("Tutor Error:", error);
-    return "Sensei sedang bermeditasi (Error). Pastikan API Key benar dan coba lagi!";
+    return "Sensei sedang bermeditasi (Error). Mohon coba lagi nanti.";
   }
 }
 
 function cleanJsonString(str: string): string {
-  let cleaned = str
+  return str
     .replace(/```json/g, "")
     .replace(/```/g, "")
     .trim();
-  return cleaned;
 }
 
+/**
+ * Bulk generate quests for a chapter using Gemini's JSON output capabilities and responseSchema.
+ */
 export async function generateChapterQuests(chapterId: string, chapterTitle: string, count: number): Promise<Partial<Quest>[]> {
-  const apiKey = getStoredApiKey();
-  if (!apiKey) throw new Error("API Key belum diatur. Silakan atur di tab Settings.");
-
-  const ai = new GoogleGenAI({ apiKey });
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   try {
-    // Menggunakan gemini-3-flash-preview karena limit gratisannya jauh lebih besar (1500 RPD)
-    // dibanding model Pro yang sering terkena limit 429.
     const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
-      contents: `You are an expert English Curriculum Designer. 
-      Generate a sequence of ${count} English learning quests for 8th-grade students for the chapter "${chapterTitle}".
+      model: "gemini-3-pro-preview", // Using pro for complex curriculum generation
+      contents: `You are an expert English Curriculum Designer for Indonesian Junior High School (SMP Kelas 8). 
+      Generate a sequence of ${count} English learning quests for the chapter "${chapterTitle}".
       
-      CRITICAL RULES:
-      1. Each quest MUST have a unique title and a specific topic related to "${chapterTitle}".
-      2. Each quest MUST have exactly 5 questions (mix of 'mcq' with 4 options 'a', and 'tf').
-      3. Content MUST include at least one 'h1' and two 'p' items.
-      4. Ensure pedagogical progression (easier quests first).
-      5. Return ONLY a raw JSON array. No preamble, no markdown formatting.`,
+      CRITICAL RULES FOR QUESTIONS:
+      1. For 'tf' (True/False) questions: The 'correct' field MUST be a boolean (true or false).
+      2. For 'mcq' (Multiple Choice) questions: The 'correct' field MUST be the index of the answer (0, 1, 2, or 3).
+      3. Double-check facts: Ensure the 'correct' answer truly matches the question context.
+      4. Each quest MUST have exactly 5 questions.
+      
+      Return ONLY a raw JSON array. No preamble, no markdown.`,
       config: {
-        // Flash-preview mendukung thinking budget untuk hasil lebih cerdas
         thinkingConfig: { thinkingBudget: 2000 },
         responseMimeType: "application/json",
         responseSchema: {
@@ -80,9 +77,9 @@ export async function generateChapterQuests(chapterId: string, chapterTitle: str
                     type: { type: Type.STRING },
                     q: { type: Type.STRING },
                     a: { type: Type.ARRAY, items: { type: Type.STRING } },
-                    correct: { type: Type.NUMBER },
+                    correct: { type: Type.BOOLEAN },
                   },
-                  required: ["type", "q", "correct"],
+                  required: ["type", "q"],
                 },
               },
             },
@@ -95,21 +92,26 @@ export async function generateChapterQuests(chapterId: string, chapterTitle: str
     const rawText = response.text;
     if (!rawText) throw new Error("Empty AI response");
 
-    return JSON.parse(cleanJsonString(rawText));
+    // Final mapping for safety to ensure correct types for questions
+    const parsed = JSON.parse(cleanJsonString(rawText));
+    return parsed.map((q: any) => ({
+      ...q,
+      questions: q.questions.map((ques: any) => ({
+        ...ques,
+        correct: ques.type === "tf" ? String(ques.correct) === "true" : Number(ques.correct),
+      })),
+    }));
   } catch (error: any) {
     console.error("Bulk Generation Error:", error);
-    if (error.message?.includes("429")) {
-      throw new Error("Kuota AI gratisan sedang penuh. Tunggu 1 menit lalu coba lagi, atau gunakan model Flash.");
-    }
     throw error;
   }
 }
 
+/**
+ * Generate a thematic image for a quest topic using nano banana models.
+ */
 export async function generateQuestImage(topic: string) {
-  const apiKey = getStoredApiKey();
-  if (!apiKey) return null;
-
-  const ai = new GoogleGenAI({ apiKey });
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   try {
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash-image",
@@ -121,11 +123,15 @@ export async function generateQuestImage(topic: string) {
       },
     });
 
-    for (const part of response.candidates[0].content.parts) {
-      if (part.inlineData) return `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
+    // Iterate through candidates and parts to find the image data as per guidelines
+    for (const part of response.candidates?.[0]?.content?.parts || []) {
+      if (part.inlineData) {
+        return `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
+      }
     }
     return null;
   } catch (error) {
+    console.error("Image Generation Error:", error);
     return null;
   }
 }
