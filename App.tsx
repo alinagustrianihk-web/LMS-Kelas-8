@@ -254,7 +254,7 @@ const StudentDashboard = ({ user, dbUsers, dbProgress, dbLevels, setActiveQuest,
   );
 };
 
-const TeacherDashboard = ({ dbUsers, dbLevels, onUpdateConfig, onRewardUser, systemConfig, showAlert }: any) => {
+const TeacherDashboard = ({ dbUsers, dbLevels, onUpdateConfig, onRewardUser, systemConfig, showAlert, loadData }: any) => {
   const [activeTab, setActiveTab] = useState<"students" | "chapters" | "leaderboard" | "settings">("students");
   const [managedChapterId, setManagedChapterId] = useState<string | null>(null);
   const [announcement, setAnnouncement] = useState(systemConfig.announcement || "");
@@ -307,7 +307,7 @@ const TeacherDashboard = ({ dbUsers, dbLevels, onUpdateConfig, onRewardUser, sys
       }
 
       showAlert("Success! Check Individual Quests for the drafts.");
-      setTimeout(() => window.location.reload(), 1500);
+      setTimeout(() => loadData(), 1500);
     } catch (e: any) {
       console.error(e);
       showAlert(getFriendlyErrorMessage(e));
@@ -325,7 +325,7 @@ const TeacherDashboard = ({ dbUsers, dbLevels, onUpdateConfig, onRewardUser, sys
         await dbService.saveQuest({ ...q, status: publish ? "published" : "draft" });
       }
       showAlert(`Chapter ${publish ? "Published" : "set to Draft"}.`);
-      window.location.reload();
+      await loadData();
     } catch (e) {
       showAlert("Operation failed.");
     }
@@ -336,7 +336,7 @@ const TeacherDashboard = ({ dbUsers, dbLevels, onUpdateConfig, onRewardUser, sys
     try {
       await dbService.deleteQuest(questId);
       showAlert("Quest deleted.");
-      window.location.reload();
+      await loadData();
     } catch (e) {
       showAlert("Delete failed.");
     }
@@ -347,7 +347,7 @@ const TeacherDashboard = ({ dbUsers, dbLevels, onUpdateConfig, onRewardUser, sys
       const newStatus = quest.status === "published" ? "draft" : "published";
       await dbService.saveQuest({ ...quest, status: newStatus });
       showAlert(`Quest set to ${newStatus}.`);
-      window.location.reload();
+      await loadData();
     } catch (e) {
       showAlert("Update failed.");
     }
@@ -701,7 +701,8 @@ const App = () => {
   }, []);
 
   const loadData = useCallback(async () => {
-    setIsLoading(true);
+    // We don't want to show a global loader every time data refreshes backgroundly
+    // but on initial mount it's fine.
     try {
       const users = await dbService.getUsers();
       const quests = await dbService.getQuests();
@@ -919,7 +920,7 @@ const App = () => {
       )}
 
       {view === "dashboard" && (user?.role === UserRole.TEACHER || user?.role === UserRole.ADMIN) && (
-        <TeacherDashboard dbUsers={dbUsers} dbLevels={dbLevels} onUpdateConfig={handleUpdateConfig} onRewardUser={handleRewardUser} systemConfig={systemConfig} showAlert={showAlert} />
+        <TeacherDashboard dbUsers={dbUsers} dbLevels={dbLevels} onUpdateConfig={handleUpdateConfig} onRewardUser={handleRewardUser} systemConfig={systemConfig} showAlert={showAlert} loadData={loadData} />
       )}
 
       {view === "quest-detail" && activeQuest && (
