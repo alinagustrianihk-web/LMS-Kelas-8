@@ -24,6 +24,9 @@ import {
   Trophy,
   Crown,
   Medal,
+  BookOpen,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import { INITIAL_CURRICULUM, DEFAULT_USERS, CHAPTERS } from "./constants.tsx";
 import { User, UserRole, Quest, Progress, SystemConfig, Chapter } from "./types.ts";
@@ -35,34 +38,34 @@ import { generateQuestImage, generateChapterQuests } from "./services/geminiServ
 
 // --- Sub-components (ContentRenderer, LeaderboardList, StudentDashboard, TeacherDashboard) ---
 
-const ContentRenderer: React.FC<{ content: Quest["content"] }> = ({ content }) => (
-  <div className="space-y-6 md:space-y-8">
+const ContentRenderer: React.FC<{ content: Quest["content"]; compact?: boolean }> = ({ content, compact }) => (
+  <div className={compact ? "space-y-4" : "space-y-6 md:space-y-8"}>
     {content.map((item, idx) => {
       if (item.type === "h1")
         return (
-          <h1 key={idx} className="text-2xl md:text-4xl font-black text-white border-l-4 md:border-l-8 border-indigo-600 pl-4 md:pl-6 uppercase">
+          <h1 key={idx} className={`${compact ? "text-lg md:text-xl" : "text-2xl md:text-4xl"} font-black text-white border-l-4 md:border-l-8 border-indigo-600 pl-4 md:pl-6 uppercase`}>
             {item.text}
           </h1>
         );
       if (item.type === "h2")
         return (
-          <h2 key={idx} className="text-lg md:text-xl font-bold text-indigo-400 uppercase flex items-center gap-3">
-            <div className="w-6 md:w-8 h-[2px] bg-indigo-900" />
+          <h2 key={idx} className={`${compact ? "text-sm md:text-base" : "text-lg md:text-xl"} font-bold text-indigo-400 uppercase flex items-center gap-3`}>
+            <div className="w-4 md:w-8 h-[2px] bg-indigo-900" />
             {item.text}
           </h2>
         );
       if (item.type === "p")
         return (
-          <p key={idx} className="text-slate-300 font-medium leading-relaxed text-base md:text-lg">
+          <p key={idx} className={`${compact ? "text-xs md:text-sm" : "text-slate-300 text-base md:text-lg"} font-medium leading-relaxed text-slate-300`}>
             {item.text}
           </p>
         );
       if (item.type === "list")
         return (
-          <ul key={idx} className="space-y-3 bg-slate-900/50 p-5 md:p-8 rounded-[2rem] md:rounded-[2.5rem] border-2 border-slate-800">
+          <ul key={idx} className={`space-y-2 bg-slate-900/50 ${compact ? "p-3 md:p-5" : "p-5 md:p-8"} rounded-2xl md:rounded-[2.5rem] border-2 border-slate-800`}>
             {item.items?.map((li, i) => (
-              <li key={i} className="flex gap-3 md:gap-4 text-slate-300 font-bold text-sm md:text-base items-start">
-                <div className="w-5 h-5 md:w-6 md:h-6 shrink-0 rounded-full bg-indigo-950 flex items-center justify-center text-indigo-400 text-[10px] border border-indigo-900/50">{i + 1}</div>
+              <li key={i} className="flex gap-2 md:gap-4 text-slate-300 font-bold text-[10px] md:text-sm items-start">
+                <div className="w-4 h-4 md:w-6 md:h-6 shrink-0 rounded-full bg-indigo-950 flex items-center justify-center text-indigo-400 text-[8px] md:text-[10px] border border-indigo-900/50">{i + 1}</div>
                 <span>{li}</span>
               </li>
             ))}
@@ -116,11 +119,8 @@ const LeaderboardList: React.FC<{ users: User[]; limit?: number; highlightId?: s
 
 const StudentDashboard = ({ user, dbUsers, dbProgress, dbLevels, setActiveQuest, setView, setIsQuizMode }: any) => {
   const [activeChapterId, setActiveChapterId] = useState("bab1");
-
-  // Perbaikan: Siswa bisa melihat quest yang berstatus 'published' ATAU yang tidak punya field status (backward compatibility)
   const publishedQuests = dbLevels.filter((l: any) => l.status === "published" || !l.status);
   const completedQuestIds = dbProgress.filter((p: any) => p.userId === user.id).map((p: any) => p.levelId);
-
   const currentChapterQuests = publishedQuests.filter((q: any) => q.chapterId === activeChapterId);
   const progressPercent = publishedQuests.length > 0 ? (completedQuestIds.length / publishedQuests.length) * 100 : 0;
 
@@ -261,10 +261,8 @@ const TeacherDashboard = ({ dbUsers, dbLevels, onUpdateConfig, onRewardUser, sys
   const handleBulkGenerate = async (chapter: Chapter) => {
     const qCount = questionsPerQuestMap[chapter.id] || 5;
     if (!confirm(`Generate AI Quests for ${chapter.title}?`)) return;
-
     setGeneratingChapter(chapter.id);
     showAlert("AI Sensei is designing the curriculum...");
-
     try {
       const generatedData = await generateChapterQuests(chapter.id, chapter.title, chapter.totalQuests, teacherApiKey, qCount);
       for (let i = 0; i < generatedData.length; i++) {
@@ -296,7 +294,6 @@ const TeacherDashboard = ({ dbUsers, dbLevels, onUpdateConfig, onRewardUser, sys
   const toggleChapterStatus = async (chapterId: string, publish: boolean) => {
     const questsToUpdate = dbLevels.filter((q: any) => q.chapterId === chapterId);
     try {
-      // Perbaikan: Gunakan Promise.all untuk kecepatan
       await Promise.all(questsToUpdate.map((q: any) => dbService.saveQuest({ ...q, status: publish ? "published" : "draft" })));
       showAlert(`Chapter ${publish ? "Published" : "Drafted"}.`);
       await loadData();
@@ -470,12 +467,10 @@ const TeacherDashboard = ({ dbUsers, dbLevels, onUpdateConfig, onRewardUser, sys
 // --- Main App Component ---
 
 const App = () => {
-  // Persistence: Muat user dari localStorage saat startup
   const [user, setUser] = useState<User | null>(() => {
     const saved = localStorage.getItem("quest8_user");
     return saved ? JSON.parse(saved) : null;
   });
-
   const [view, setView] = useState("login");
   const [dbUsers, setDbUsers] = useState<User[]>([]);
   const [dbLevels, setDbLevels] = useState<Quest[]>([]);
@@ -490,11 +485,11 @@ const App = () => {
   const [activeQuest, setActiveQuest] = useState<Quest | null>(null);
   const [isQuizMode, setIsQuizMode] = useState(false);
   const [isAiChatOpen, setIsAiChatOpen] = useState(false);
+  const [showMobileReference, setShowMobileReference] = useState(false);
   const [loginForm, setLoginForm] = useState({ username: "", password: "", name: "" });
   const [isRegistering, setIsRegistering] = useState(false);
   const [alert, setAlert] = useState<string | null>(null);
 
-  // Sync user state ke localStorage
   useEffect(() => {
     if (user) {
       localStorage.setItem("quest8_user", JSON.stringify(user));
@@ -513,21 +508,14 @@ const App = () => {
   const loadData = useCallback(async () => {
     try {
       const [users, quests, progress, config] = await Promise.all([dbService.getUsers(), dbService.getQuests(), dbService.getProgress(), dbService.getConfig()]);
-
       if (users.length === 0) {
         for (const u of DEFAULT_USERS) await dbService.saveUser(u);
         setDbUsers(DEFAULT_USERS);
-      } else {
-        setDbUsers(users);
-      }
-
+      } else setDbUsers(users);
       if (quests.length === 0) {
         for (const q of INITIAL_CURRICULUM) await dbService.saveQuest(q);
         setDbLevels(INITIAL_CURRICULUM);
-      } else {
-        setDbLevels(quests);
-      }
-
+      } else setDbLevels(quests);
       setDbProgress(progress);
       if (config) setSystemConfig(config);
     } catch (e) {
@@ -656,9 +644,9 @@ const App = () => {
         />
       )}
       {view === "quest-detail" && activeQuest && (
-        <div className="max-w-4xl mx-auto py-12 px-6">
+        <div className="max-w-7xl mx-auto py-8 md:py-12 px-4 md:px-6">
           {!isQuizMode ? (
-            <div className="space-y-12 animate-in fade-in duration-700">
+            <div className="max-w-4xl mx-auto space-y-12 animate-in fade-in duration-700">
               <button onClick={() => setView("dashboard")} className="flex items-center gap-2 text-[10px] font-black uppercase text-slate-500">
                 <ChevronLeft size={16} /> Back
               </button>
@@ -688,14 +676,44 @@ const App = () => {
               </div>
             </div>
           ) : (
-            <div className="max-w-2xl mx-auto">
-              <QuizEngine questions={activeQuest.questions} passingScore={activeQuest.passingScore} onFinish={onQuizFinish} />
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start relative">
+              {/* Desktop Sidebar: Reading Material */}
+              <div className="hidden lg:block lg:col-span-4 sticky top-24 bg-slate-900 p-8 rounded-[3rem] border border-slate-800 max-h-[calc(100vh-120px)] overflow-y-auto custom-scrollbar">
+                <div className="flex items-center gap-3 mb-6 pb-4 border-b border-slate-800">
+                  <BookOpen className="text-indigo-400" size={24} />
+                  <h3 className="text-sm font-black text-white uppercase tracking-widest italic">Reference Material</h3>
+                </div>
+                <ContentRenderer content={activeQuest.content} compact />
+              </div>
+
+              {/* Mobile Reference Accordion */}
+              <div className="lg:hidden w-full bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden mb-4">
+                <button onClick={() => setShowMobileReference(!showMobileReference)} className="w-full p-4 flex justify-between items-center text-white">
+                  <div className="flex items-center gap-3">
+                    <BookOpen className="text-indigo-400" size={18} />
+                    <span className="text-[10px] font-black uppercase tracking-widest italic">Reference Material</span>
+                  </div>
+                  {showMobileReference ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+                </button>
+                {showMobileReference && (
+                  <div className="p-6 border-t border-slate-800 bg-slate-950/50 max-h-60 overflow-y-auto">
+                    <ContentRenderer content={activeQuest.content} compact />
+                  </div>
+                )}
+              </div>
+
+              {/* Main Quiz Area */}
+              <div className="lg:col-span-8 w-full max-w-2xl mx-auto">
+                <QuizEngine questions={activeQuest.questions} passingScore={activeQuest.passingScore} onFinish={onQuizFinish} />
+              </div>
             </div>
           )}
         </div>
       )}
       <AISensei topic={activeQuest?.topic || "General English"} isOpen={isAiChatOpen} setIsOpen={setIsAiChatOpen} />
-      {alert && view !== "login" && <div className="fixed top-24 left-1/2 -translate-x-1/2 z-[200] bg-indigo-600 text-white px-8 py-4 rounded-2xl font-black uppercase text-xs tracking-widest shadow-2xl">{alert}</div>}
+      {alert && view !== "login" && (
+        <div className="fixed top-24 left-1/2 -translate-x-1/2 z-[200] bg-indigo-600 text-white px-8 py-4 rounded-2xl font-black uppercase text-xs tracking-widest shadow-2xl text-center min-w-[300px]">{alert}</div>
+      )}
     </Layout>
   );
 };
