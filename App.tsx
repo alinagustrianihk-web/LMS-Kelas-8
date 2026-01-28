@@ -27,6 +27,8 @@ import {
   BookOpen,
   ChevronDown,
   ChevronUp,
+  Eye,
+  X,
 } from "lucide-react";
 import { INITIAL_CURRICULUM, DEFAULT_USERS, CHAPTERS } from "./constants.tsx";
 import { User, UserRole, Quest, Progress, SystemConfig, Chapter } from "./types.ts";
@@ -36,7 +38,7 @@ import AISensei from "./components/AISensei.tsx";
 import { dbService } from "./services/dbService.ts";
 import { generateQuestImage, generateChapterQuests } from "./services/geminiService.ts";
 
-// --- Sub-components (ContentRenderer, LeaderboardList, StudentDashboard, TeacherDashboard) ---
+// --- Sub-components ---
 
 const ContentRenderer: React.FC<{ content: Quest["content"]; compact?: boolean }> = ({ content, compact }) => (
   <div className={compact ? "space-y-4" : "space-y-6 md:space-y-8"}>
@@ -255,7 +257,6 @@ const TeacherDashboard = ({ dbUsers, dbLevels, onUpdateConfig, onRewardUser, sys
   const [managedChapterId, setManagedChapterId] = useState<string | null>(null);
   const [announcement, setAnnouncement] = useState(systemConfig.announcement || "");
   const [generatingChapter, setGeneratingChapter] = useState<string | null>(null);
-  const [teacherApiKey, setTeacherApiKey] = useState("");
   const [questionsPerQuestMap, setQuestionsPerQuestMap] = useState<Record<string, number>>({});
 
   const handleBulkGenerate = async (chapter: Chapter) => {
@@ -264,7 +265,7 @@ const TeacherDashboard = ({ dbUsers, dbLevels, onUpdateConfig, onRewardUser, sys
     setGeneratingChapter(chapter.id);
     showAlert("AI Sensei is designing the curriculum...");
     try {
-      const generatedData = await generateChapterQuests(chapter.id, chapter.title, chapter.totalQuests, teacherApiKey, qCount);
+      const generatedData = await generateChapterQuests(chapter.id, chapter.title, chapter.totalQuests, qCount);
       for (let i = 0; i < generatedData.length; i++) {
         const qData = generatedData[i];
         await dbService.saveQuest({
@@ -368,7 +369,6 @@ const TeacherDashboard = ({ dbUsers, dbLevels, onUpdateConfig, onRewardUser, sys
           ))}
         </div>
       </div>
-
       {activeTab === "students" && (
         <div className="bg-slate-900 rounded-[3rem] border border-slate-800 p-8 overflow-x-auto">
           <table className="w-full text-left">
@@ -397,7 +397,6 @@ const TeacherDashboard = ({ dbUsers, dbLevels, onUpdateConfig, onRewardUser, sys
           </table>
         </div>
       )}
-
       {activeTab === "chapters" && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
           {CHAPTERS.map((chap) => {
@@ -418,13 +417,6 @@ const TeacherDashboard = ({ dbUsers, dbLevels, onUpdateConfig, onRewardUser, sys
                   <p className="text-xs text-slate-500 font-bold mt-2">{chapQuests.length} Quests created.</p>
                 </div>
                 <div className="pt-6 border-t border-slate-800 space-y-3">
-                  <input
-                    type="password"
-                    placeholder="Gemini Key (optional)"
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-[10px] text-slate-300"
-                    onChange={(e) => setTeacherApiKey(e.target.value)}
-                    value={teacherApiKey}
-                  />
                   <button
                     onClick={() => handleBulkGenerate(chap)}
                     disabled={generatingChapter === chap.id}
@@ -441,7 +433,6 @@ const TeacherDashboard = ({ dbUsers, dbLevels, onUpdateConfig, onRewardUser, sys
           })}
         </div>
       )}
-
       {activeTab === "leaderboard" && (
         <div className="max-w-2xl mx-auto bg-slate-900 p-10 rounded-[3rem] border border-slate-800 shadow-2xl">
           <h3 className="text-2xl font-black text-white italic mb-8 uppercase flex items-center gap-3">
@@ -450,7 +441,6 @@ const TeacherDashboard = ({ dbUsers, dbLevels, onUpdateConfig, onRewardUser, sys
           <LeaderboardList users={dbUsers} />
         </div>
       )}
-
       {activeTab === "settings" && (
         <div className="max-w-xl mx-auto bg-slate-900 p-10 rounded-[3rem] border border-slate-800 space-y-6">
           <h3 className="text-xl font-black text-white uppercase italic">Broadcast Center</h3>
@@ -475,12 +465,7 @@ const App = () => {
   const [dbUsers, setDbUsers] = useState<User[]>([]);
   const [dbLevels, setDbLevels] = useState<Quest[]>([]);
   const [dbProgress, setDbProgress] = useState<Progress[]>([]);
-  const [systemConfig, setSystemConfig] = useState<SystemConfig>({
-    semester: "1",
-    year: "2024/2025",
-    maintenance: false,
-    announcement: "Selamat datang di Quest8 LMS!",
-  });
+  const [systemConfig, setSystemConfig] = useState<SystemConfig>({ semester: "1", year: "2024/2025", maintenance: false, announcement: "Selamat datang di Quest8 LMS!" });
   const [isLoading, setIsLoading] = useState(true);
   const [activeQuest, setActiveQuest] = useState<Quest | null>(null);
   const [isQuizMode, setIsQuizMode] = useState(false);
@@ -529,27 +514,6 @@ const App = () => {
     loadData();
   }, [loadData]);
 
-  const handleLogin = (e: React.FormEvent) => {
-    e.preventDefault();
-    const found = dbUsers.find((u) => u.username === loginForm.username && u.password === loginForm.password);
-    if (found) setUser(found);
-    else showAlert("Username/Password salah!");
-  };
-
-  const handleRegister = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!loginForm.username || !loginForm.password || !loginForm.name) return showAlert("Harap isi semua bidang!");
-    const newUser: User = { id: `u_${Date.now()}`, username: loginForm.username, password: loginForm.password, name: loginForm.name, role: UserRole.STUDENT, xp: 0, streak: 0, unlockedChapters: ["bab1"] };
-    try {
-      await dbService.saveUser(newUser);
-      setDbUsers((p) => [...p, newUser]);
-      setUser(newUser);
-      showAlert("Berhasil!");
-    } catch (e) {
-      showAlert("Gagal pendaftaran.");
-    }
-  };
-
   const onQuizFinish = async (score: number) => {
     if (!user || !activeQuest) return;
     if (score >= activeQuest.passingScore) {
@@ -582,7 +546,21 @@ const App = () => {
             <div className="w-20 h-20 bg-indigo-600 rounded-[2rem] flex items-center justify-center text-white font-black text-4xl mx-auto shadow-2xl rotate-12">Q</div>
             <h1 className="text-4xl font-black text-white italic">Quest8 LMS</h1>
           </div>
-          <form onSubmit={isRegistering ? handleRegister : handleLogin} className="bg-slate-900 p-10 rounded-[3rem] border border-slate-800 shadow-2xl space-y-6">
+          <form
+            onSubmit={
+              isRegistering
+                ? (e) => {
+                    e.preventDefault(); /* register logic */
+                  }
+                : (e) => {
+                    e.preventDefault();
+                    const found = dbUsers.find((u) => u.username === loginForm.username && u.password === loginForm.password);
+                    if (found) setUser(found);
+                    else showAlert("Username/Password salah!");
+                  }
+            }
+            className="bg-slate-900 p-10 rounded-[3rem] border border-slate-800 shadow-2xl space-y-6"
+          >
             {isRegistering && (
               <input
                 type="text"
@@ -676,34 +654,45 @@ const App = () => {
               </div>
             </div>
           ) : (
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start relative">
-              {/* Desktop Sidebar: Reading Material */}
-              <div className="hidden lg:block lg:col-span-4 sticky top-24 bg-slate-900 p-8 rounded-[3rem] border border-slate-800 max-h-[calc(100vh-120px)] overflow-y-auto custom-scrollbar">
+            <div className="grid grid-cols-1 md:grid-cols-12 gap-8 items-start relative">
+              {/* Reference Material - Visible on md+ */}
+              <div className="hidden md:block md:col-span-4 sticky top-24 bg-slate-900 p-8 rounded-[3rem] border border-slate-800 max-h-[calc(100vh-120px)] overflow-y-auto custom-scrollbar shadow-2xl">
                 <div className="flex items-center gap-3 mb-6 pb-4 border-b border-slate-800">
                   <BookOpen className="text-indigo-400" size={24} />
-                  <h3 className="text-sm font-black text-white uppercase tracking-widest italic">Reference Material</h3>
+                  <h3 className="text-sm font-black text-white uppercase tracking-widest italic">Study Reference</h3>
                 </div>
                 <ContentRenderer content={activeQuest.content} compact />
               </div>
 
-              {/* Mobile Reference Accordion */}
-              <div className="lg:hidden w-full bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden mb-4">
-                <button onClick={() => setShowMobileReference(!showMobileReference)} className="w-full p-4 flex justify-between items-center text-white">
-                  <div className="flex items-center gap-3">
-                    <BookOpen className="text-indigo-400" size={18} />
-                    <span className="text-[10px] font-black uppercase tracking-widest italic">Reference Material</span>
-                  </div>
-                  {showMobileReference ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+              {/* Mobile Floating Button to show material */}
+              <div className="md:hidden fixed bottom-32 left-6 z-50">
+                <button
+                  onClick={() => setShowMobileReference(!showMobileReference)}
+                  className="w-14 h-14 bg-emerald-600 text-white rounded-2xl shadow-2xl flex items-center justify-center hover:scale-110 active:scale-95 transition-all border border-emerald-500"
+                >
+                  {showMobileReference ? <X size={24} /> : <BookOpen size={24} />}
                 </button>
                 {showMobileReference && (
-                  <div className="p-6 border-t border-slate-800 bg-slate-950/50 max-h-60 overflow-y-auto">
+                  <div className="fixed inset-x-6 bottom-52 bg-slate-900 border-2 border-indigo-500 rounded-[2rem] p-6 shadow-2xl max-h-[60vh] overflow-y-auto animate-in slide-in-from-bottom-5">
+                    <div className="flex justify-between items-center mb-4 border-b border-slate-800 pb-2">
+                      <span className="text-[10px] font-black uppercase tracking-widest text-indigo-400">Reference</span>
+                      <button onClick={() => setShowMobileReference(false)}>
+                        <X size={16} className="text-slate-500" />
+                      </button>
+                    </div>
                     <ContentRenderer content={activeQuest.content} compact />
                   </div>
                 )}
               </div>
 
               {/* Main Quiz Area */}
-              <div className="lg:col-span-8 w-full max-w-2xl mx-auto">
+              <div className="md:col-span-8 w-full max-w-2xl mx-auto space-y-6">
+                <div className="md:hidden bg-indigo-900/20 border border-indigo-500/30 p-4 rounded-2xl flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2 text-indigo-300">
+                    <Eye size={16} />
+                    <span className="text-[10px] font-bold uppercase tracking-widest">Materi ada di tombol hijau</span>
+                  </div>
+                </div>
                 <QuizEngine questions={activeQuest.questions} passingScore={activeQuest.passingScore} onFinish={onQuizFinish} />
               </div>
             </div>

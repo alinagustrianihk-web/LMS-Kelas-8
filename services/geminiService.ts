@@ -26,11 +26,10 @@ function cleanJsonString(str: string): string {
 }
 
 /**
- * Bulk generate quests for a chapter using optional API key and custom question count per quest.
+ * Bulk generate quests for a chapter using process.env.API_KEY and custom question count per quest.
  */
-export async function generateChapterQuests(chapterId: string, chapterTitle: string, questCount: number, apiKey?: string, questionsPerQuest: number = 5): Promise<Partial<Quest>[]> {
-  const activeKey = apiKey && apiKey.trim() !== "" ? apiKey : process.env.API_KEY;
-  const ai = new GoogleGenAI({ apiKey: activeKey });
+export async function generateChapterQuests(chapterId: string, chapterTitle: string, questCount: number, questionsPerQuest: number = 5): Promise<Partial<Quest>[]> {
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
   try {
     const response = await ai.models.generateContent({
