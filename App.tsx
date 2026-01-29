@@ -36,6 +36,7 @@ import {
   Link,
   RotateCcw,
   Save,
+  ClipboardCheck,
 } from "lucide-react";
 import { INITIAL_CURRICULUM, DEFAULT_USERS, CHAPTERS } from "./constants.tsx";
 import { User, UserRole, Quest, Progress, SystemConfig, Chapter } from "./types.ts";
@@ -281,9 +282,10 @@ const TeacherDashboard = ({ dbUsers, dbLevels, onUpdateConfig, onRewardUser, sys
   const [showKey, setShowKey] = useState(false);
 
   const saveManualKey = () => {
+    if (manualKey.length < 10) return showAlert("Kode Akses tidak valid!");
     localStorage.setItem("quest8_api_key", manualKey);
-    showAlert("Kode Akses Berhasil Disimpan!");
-    setTimeout(() => window.location.reload(), 1000); // Reload to apply key
+    showAlert("Sensei Berhasil Diaktifkan!");
+    setTimeout(() => window.location.reload(), 800);
   };
 
   const handleBulkGenerate = async (chapter: Chapter) => {
@@ -484,46 +486,47 @@ const TeacherDashboard = ({ dbUsers, dbLevels, onUpdateConfig, onRewardUser, sys
               </div>
             </div>
 
-            <div className="p-8 bg-slate-950 rounded-[2.5rem] border border-slate-800 space-y-6">
+            <div className="p-8 bg-slate-950 rounded-[2.5rem] border border-slate-800 space-y-8">
               <div className="space-y-4">
-                <div className="flex justify-between items-center">
-                  <p className="text-[10px] text-slate-500 font-black uppercase tracking-[0.2em]">Kode Akses Sensei</p>
-                  <button onClick={() => setShowKey(!showKey)} className="text-indigo-400 hover:text-indigo-300 transition-colors">
+                <div className="flex justify-between items-center px-1">
+                  <p className="text-[11px] text-indigo-400 font-black uppercase tracking-[0.2em] flex items-center gap-2">
+                    <Key size={14} /> Tempel Kode Akses Sensei Disini
+                  </p>
+                  <button onClick={() => setShowKey(!showKey)} className="text-slate-500 hover:text-white transition-colors">
                     {showKey ? <EyeOff size={16} /> : <Eye size={16} />}
                   </button>
                 </div>
 
                 <div className="relative group">
-                  <input
-                    type={showKey ? "text" : "password"}
+                  <textarea
+                    rows={2}
                     value={manualKey}
-                    onChange={(e) => setManualKey(e.target.value)}
-                    placeholder="Tempel Kode Gemini Disini..."
-                    className="w-full bg-slate-900 border border-slate-800 p-5 rounded-2xl text-white text-sm outline-none focus:border-indigo-600 transition-all font-mono"
+                    onChange={(e) => setManualKey(e.target.value.trim())}
+                    placeholder="Paste Kode AIzaSy... disini"
+                    className="w-full bg-slate-900 border-2 border-slate-800 p-5 rounded-2xl text-white text-sm outline-none focus:border-indigo-600 transition-all font-mono resize-none shadow-inner"
                   />
-                  <Key className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-700 pointer-events-none" size={18} />
                 </div>
 
                 <button
                   onClick={saveManualKey}
-                  className="w-full py-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-black uppercase text-xs flex items-center justify-center gap-3 shadow-lg shadow-emerald-900/20 transition-all active:scale-95"
+                  className="w-full py-5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-black uppercase text-xs flex items-center justify-center gap-3 shadow-xl shadow-emerald-900/40 transition-all active:scale-95"
                 >
-                  <Save size={18} /> Simpan Kode Akses
+                  <ClipboardCheck size={20} /> Simpan & Aktifkan Sensei
                 </button>
               </div>
 
-              <div className="h-[1px] bg-slate-800 w-full" />
-
-              <div className="flex flex-col gap-3">
-                <a
-                  href="https://aistudio.google.com/app/apikey"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black uppercase text-xs flex items-center justify-center gap-3 transition-all"
-                >
-                  <Globe size={18} /> Dapatkan Akses Gratis
-                </a>
-                <p className="text-[9px] text-slate-500 font-bold text-center italic">Klik di atas, ambil kodenya, lalu tempel di kotak input.</p>
+              <div className="flex flex-col gap-4 pt-4">
+                <div className="h-[1px] bg-slate-800 w-full" />
+                <div className="flex flex-col gap-3">
+                  <a
+                    href="https://aistudio.google.com/app/apikey"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="w-full py-4 bg-slate-900 hover:bg-slate-800 text-indigo-400 border border-indigo-900/20 rounded-2xl font-black uppercase text-[10px] flex items-center justify-center gap-3 transition-all"
+                  >
+                    <Globe size={16} /> Belum Punya Kode? Klik Disini
+                  </a>
+                </div>
               </div>
             </div>
           </div>
@@ -588,9 +591,6 @@ const App = () => {
       const manualKey = localStorage.getItem("quest8_api_key");
       if (manualKey && manualKey.length > 10) {
         setApiStatus(true);
-      } else if (window.aistudio && typeof window.aistudio.hasSelectedApiKey === "function") {
-        const hasKey = await window.aistudio.hasSelectedApiKey();
-        setApiStatus(hasKey);
       } else if (process.env.API_KEY && process.env.API_KEY.length > 10) {
         setApiStatus(true);
       } else {
@@ -602,18 +602,7 @@ const App = () => {
   }, []);
 
   const handleConnectKey = async () => {
-    try {
-      if (window.aistudio && typeof window.aistudio.openSelectKey === "function") {
-        await window.aistudio.openSelectKey();
-        setApiStatus(true);
-        showAlert("Fitur AI Sensei Aktif!");
-      } else {
-        showAlert("Mohon gunakan kotak 'Kode Akses Sensei' di bawah.");
-      }
-    } catch (e) {
-      console.error(e);
-      showAlert("Gagal mengaktifkan fitur.");
-    }
+    showAlert("Gunakan Kotak Input di menu SETTINGS!");
   };
 
   const loadData = useCallback(async () => {
