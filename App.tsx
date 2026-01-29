@@ -50,8 +50,8 @@ declare global {
     openSelectKey: () => Promise<void>;
   }
   interface Window {
-    // Fix: Removed readonly to ensure it matches common ambient declarations of Window
-    aistudio: AIStudio;
+    // Making aistudio optional to match potential external declarations and resolve modifier mismatch
+    aistudio?: AIStudio;
   }
 }
 
@@ -478,21 +478,32 @@ const TeacherDashboard = ({ dbUsers, dbLevels, onUpdateConfig, onRewardUser, sys
 
             <div className="p-6 bg-slate-950 rounded-2xl border border-slate-800 space-y-4">
               <p className="text-[10px] text-slate-500 font-black uppercase tracking-[0.2em]">Status Sensei: {apiStatus ? "Siap Membantu" : "Sedang Bermeditasi (Offline)"}</p>
-              {!apiStatus ? (
-                <button
-                  onClick={onConnectKey}
-                  className="w-full py-5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-black uppercase text-xs flex items-center justify-center gap-3 shadow-xl shadow-indigo-900/20 transition-all active:scale-95"
+              <div className="flex flex-col gap-3">
+                {!apiStatus ? (
+                  <button
+                    onClick={onConnectKey}
+                    className="w-full py-5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-black uppercase text-xs flex items-center justify-center gap-3 shadow-xl shadow-indigo-900/20 transition-all active:scale-95"
+                  >
+                    <Sparkles size={18} /> Aktifkan Fitur AI Sensei
+                  </button>
+                ) : (
+                  <button
+                    onClick={onConnectKey}
+                    className="w-full py-5 bg-slate-900 hover:bg-slate-800 text-indigo-400 rounded-xl border border-indigo-900/30 font-black uppercase text-xs flex items-center justify-center gap-3 transition-all"
+                  >
+                    <RotateCcw size={18} /> Segarkan Koneksi
+                  </button>
+                )}
+
+                <a
+                  href="https://aistudio.google.com/app/apikey"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-full py-3 bg-slate-900 hover:bg-slate-800 text-slate-400 border border-slate-800 rounded-xl font-black uppercase text-[10px] flex items-center justify-center gap-2 transition-all"
                 >
-                  <Sparkles size={18} /> Aktifkan Fitur AI Sensei
-                </button>
-              ) : (
-                <button
-                  onClick={onConnectKey}
-                  className="w-full py-5 bg-slate-900 hover:bg-slate-800 text-indigo-400 rounded-xl border border-indigo-900/30 font-black uppercase text-xs flex items-center justify-center gap-3 transition-all"
-                >
-                  <RotateCcw size={18} /> Segarkan Koneksi
-                </button>
-              )}
+                  <Globe size={14} /> Dapatkan Akses Gratis
+                </a>
+              </div>
             </div>
           </div>
 
@@ -553,8 +564,12 @@ const App = () => {
 
   const checkApiStatus = useCallback(async () => {
     try {
-      const hasKey = await window.aistudio.hasSelectedApiKey();
-      setApiStatus(hasKey);
+      if (window.aistudio && typeof window.aistudio.hasSelectedApiKey === "function") {
+        const hasKey = await window.aistudio.hasSelectedApiKey();
+        setApiStatus(hasKey);
+      } else if (process.env.API_KEY && process.env.API_KEY.length > 10) {
+        setApiStatus(true);
+      }
     } catch (e) {
       if (process.env.API_KEY && process.env.API_KEY.length > 10) setApiStatus(true);
     }
@@ -562,10 +577,21 @@ const App = () => {
 
   const handleConnectKey = async () => {
     try {
-      await window.aistudio.openSelectKey();
-      setApiStatus(true);
-      showAlert("Fitur AI Sensei Aktif!");
+      if (window.aistudio && typeof window.aistudio.openSelectKey === "function") {
+        await window.aistudio.openSelectKey();
+        setApiStatus(true);
+        showAlert("Fitur AI Sensei Aktif!");
+      } else {
+        // Jika bridge tidak ada, cek apakah ada API_KEY env
+        if (process.env.API_KEY) {
+          setApiStatus(true);
+          showAlert("Sensei Terhubung!");
+        } else {
+          showAlert("Akses Belajar Tidak Ditemukan.");
+        }
+      }
     } catch (e) {
+      console.error(e);
       showAlert("Gagal mengaktifkan fitur.");
     }
   };
