@@ -671,13 +671,47 @@ const App = () => {
 
   const onQuizFinish = async (score: number) => {
     if (!user || !activeQuest) return;
+
     if (score >= activeQuest.passingScore) {
       const already = dbProgress.some((p) => p.userId === user.id && p.levelId === activeQuest.id);
+
       if (!already) {
-        await dbService.saveProgress({ userId: user.id, levelId: activeQuest.id, score, completedAt: new Date().toISOString() });
-        const updated = { ...user, xp: user.xp + activeQuest.rewardPoints };
-        await dbService.saveUser(updated);
-        setUser(updated);
+        // 1. Simpan Progres Kuis Baru
+        const newProgress = { userId: user.id, levelId: activeQuest.id, score, completedAt: new Date().toISOString() };
+        await dbService.saveProgress(newProgress);
+
+        // 2. Siapkan data update user (XP)
+        let updatedUnlockedChapters = [...(user.unlockedChapters || ["bab1"])];
+
+        // 3. Jembatan Akses: Cek apakah Bab berikutnya harus dibuka
+        // Ambil semua quest bab ini yang berstatus 'published'
+        const publishedQuestsInChapter = dbLevels.filter((q) => q.chapterId === activeQuest.chapterId && q.status === "published");
+        // Ambil progres siswa untuk bab ini (termasuk yang baru saja selesai)
+        const completedQuestIds = new Set([...dbProgress.filter((p) => p.userId === user.id).map((p) => p.levelId), activeQuest.id]);
+
+        // Cek apakah semua quest di bab ini sudah selesai
+        const isChapterComplete = publishedQuestsInChapter.every((q) => completedQuestIds.has(q.id));
+
+        if (isChapterComplete) {
+          // Cari index bab saat ini di konstanta CHAPTERS
+          const currentChapIdx = CHAPTERS.findIndex((c) => c.id === activeQuest.chapterId);
+          if (currentChapIdx !== -1 && currentChapIdx < CHAPTERS.length - 1) {
+            const nextChapter = CHAPTERS[currentChapIdx + 1];
+            if (!updatedUnlockedChapters.includes(nextChapter.id)) {
+              updatedUnlockedChapters.push(nextChapter.id);
+              showAlert(`🎉 Selamat! Bab ${nextChapter.order} Berhasil Terbuka!`);
+            }
+          }
+        }
+
+        const updatedUser = {
+          ...user,
+          xp: user.xp + activeQuest.rewardPoints,
+          unlockedChapters: updatedUnlockedChapters,
+        };
+
+        await dbService.saveUser(updatedUser);
+        setUser(updatedUser);
         await loadData();
       }
     }
