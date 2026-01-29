@@ -29,6 +29,9 @@ import {
   ChevronUp,
   Eye,
   X,
+  Activity,
+  Wifi,
+  WifiOff,
 } from "lucide-react";
 import { INITIAL_CURRICULUM, DEFAULT_USERS, CHAPTERS } from "./constants.tsx";
 import { User, UserRole, Quest, Progress, SystemConfig, Chapter } from "./types.ts";
@@ -38,7 +41,7 @@ import AISensei from "./components/AISensei.tsx";
 import { dbService } from "./services/dbService.ts";
 import { generateQuestImage, generateChapterQuests } from "./services/geminiService.ts";
 
-// --- Sub-components (ContentRenderer, LeaderboardList, StudentDashboard, TeacherDashboard) ---
+// --- Sub-components ---
 
 const ContentRenderer: React.FC<{ content: Quest["content"]; compact?: boolean }> = ({ content, compact }) => (
   <div className={compact ? "space-y-4" : "space-y-6 md:space-y-8"}>
@@ -119,132 +122,134 @@ const LeaderboardList: React.FC<{ users: User[]; limit?: number; highlightId?: s
   );
 };
 
+// --- Student Dashboard Component ---
 const StudentDashboard = ({ user, dbUsers, dbProgress, dbLevels, setActiveQuest, setView, setIsQuizMode }: any) => {
-  const [activeChapterId, setActiveChapterId] = useState("bab1");
-  const publishedQuests = dbLevels.filter((l: any) => l.status === "published" || !l.status);
-  const completedQuestIds = dbProgress.filter((p: any) => p.userId === user.id).map((p: any) => p.levelId);
-  const currentChapterQuests = publishedQuests.filter((q: any) => q.chapterId === activeChapterId);
-  const progressPercent = publishedQuests.length > 0 ? (completedQuestIds.length / publishedQuests.length) * 100 : 0;
+  const [selectedChapter, setSelectedChapter] = useState<string>(user?.unlockedChapters?.[0] || "bab1");
+
+  const chapterQuests = dbLevels.filter((q: any) => q.chapterId === selectedChapter && q.status === "published");
+
+  const getQuestStatus = (questId: string) => {
+    return dbProgress.some((p: any) => p.userId === user.id && p.levelId === questId);
+  };
 
   const isChapterUnlocked = (chapterId: string) => {
-    if (chapterId === "bab1") return true;
-    const chapIndex = CHAPTERS.findIndex((c) => c.id === chapterId);
-    if (chapIndex <= 0) return false;
-    const prevChap = CHAPTERS[chapIndex - 1];
-    const prevChapQuests = publishedQuests.filter((q: any) => q.chapterId === prevChap.id);
-    if (prevChapQuests.length === 0) return false;
-    const finalQuestOfPrev = prevChapQuests[prevChapQuests.length - 1];
-    return finalQuestOfPrev && completedQuestIds.includes(finalQuestOfPrev.id);
+    return user?.unlockedChapters?.includes(chapterId);
   };
 
   return (
-    <div className="max-w-7xl mx-auto py-8 md:py-12 px-4 md:px-6 space-y-8 md:space-y-12 animate-in fade-in duration-700">
-      <div className="flex flex-col lg:flex-row gap-8 items-start">
-        <div className="w-full lg:w-80 space-y-6">
-          <div className="bg-slate-900 p-6 md:p-8 rounded-[2.5rem] md:rounded-[3rem] border border-slate-800 shadow-xl shadow-indigo-900/10 space-y-6">
-            <div className="text-center">
-              <h2 className="text-4xl md:text-5xl font-black text-white italic">
-                {user.xp} <span className="text-[10px] text-indigo-400 uppercase tracking-widest block not-italic mt-1">Total XP Earned</span>
-              </h2>
-            </div>
-            <div className="h-3 bg-slate-950 rounded-full overflow-hidden border border-slate-800">
-              <div className="h-full bg-gradient-to-r from-indigo-500 to-indigo-700" style={{ width: `${progressPercent}%` }} />
-            </div>
-            <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest text-slate-500">
-              <span>Path Progress</span>
-              <span className="text-white">{Math.round(progressPercent)}%</span>
-            </div>
+    <div className="max-w-7xl mx-auto py-8 md:py-12 px-4 md:px-6 space-y-12">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-8">
+        <div>
+          <h2 className="text-4xl md:text-5xl font-black uppercase italic text-white tracking-tighter">
+            Welcome back, <span className="text-indigo-500">{user.name}</span>
+          </h2>
+          <p className="text-slate-500 font-bold mt-2 uppercase tracking-[0.3em] text-[10px]">Your Learning Journey Continues</p>
+        </div>
+        <div className="flex gap-4">
+          <div className="bg-slate-900 px-6 py-4 rounded-3xl border border-slate-800 text-center">
+            <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Total XP</p>
+            <p className="text-xl font-black text-white">{user.xp}</p>
           </div>
-
-          <div className="grid grid-cols-2 lg:grid-cols-1 gap-3">
-            {CHAPTERS.map((chap) => {
-              const unlocked = isChapterUnlocked(chap.id);
-              const active = activeChapterId === chap.id;
-              return (
-                <button
-                  key={chap.id}
-                  onClick={() => unlocked && setActiveChapterId(chap.id)}
-                  className={`p-4 md:p-5 rounded-2xl md:rounded-[2rem] border transition-all text-left flex items-center gap-3 md:gap-4 group ${
-                    active
-                      ? "bg-indigo-600 border-indigo-500 text-white shadow-xl shadow-indigo-900/20"
-                      : unlocked
-                        ? "bg-slate-900 border-slate-800 text-slate-300 hover:border-indigo-600/50"
-                        : "bg-slate-950 border-slate-900 text-slate-600 cursor-not-allowed grayscale"
-                  }`}
-                >
-                  <div className={`w-8 h-8 md:w-10 md:h-10 rounded-xl flex items-center justify-center border ${active ? "bg-indigo-700 border-indigo-400" : "bg-slate-950 border-slate-800"}`}>
-                    {unlocked ? <Map size={16} /> : <LockIcon size={16} />}
-                  </div>
-                  <div>
-                    <p className={`text-[8px] md:text-[9px] font-black uppercase tracking-widest ${active ? "text-indigo-200" : "text-slate-500"}`}>Chapter {chap.order}</p>
-                    <p className="text-xs md:text-sm font-black italic line-clamp-1">{chap.title.split(": ")[1]}</p>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-
-          <div className="bg-slate-900 p-6 rounded-[2.5rem] border border-slate-800 space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-xs font-black text-white uppercase tracking-widest italic flex items-center gap-2">
-                <Trophy size={14} className="text-amber-500" /> Top Rankers
-              </h3>
-            </div>
-            <LeaderboardList users={dbUsers} limit={5} highlightId={user.id} />
+          <div className="bg-slate-900 px-6 py-4 rounded-3xl border border-slate-800 text-center">
+            <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Streak</p>
+            <p className="text-xl font-black text-white">
+              {user.streak || 0} <span className="text-xs text-orange-500">🔥</span>
+            </p>
           </div>
         </div>
+      </div>
 
-        <div className="flex-1 w-full space-y-8">
-          <div className="bg-slate-900 p-6 md:p-10 rounded-[2.5rem] md:rounded-[3.5rem] border border-slate-800 relative overflow-hidden">
-            <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-600/5 rounded-full -mr-20 -mt-20 blur-3xl" />
-            <div className="relative">
-              <h2 className="text-2xl md:text-4xl font-black uppercase text-white italic mb-2">{CHAPTERS.find((c) => c.id === activeChapterId)?.title}</h2>
-              <p className="text-sm md:text-slate-400 font-bold max-w-xl">{CHAPTERS.find((c) => c.id === activeChapterId)?.description}</p>
-            </div>
+      <div className="space-y-6">
+        <h3 className="text-xs font-black text-slate-500 uppercase tracking-[0.4em]">Select Chapter</h3>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {CHAPTERS.map((chap) => {
+            const unlocked = isChapterUnlocked(chap.id);
+            const active = selectedChapter === chap.id;
+            return (
+              <button
+                key={chap.id}
+                onClick={() => unlocked && setSelectedChapter(chap.id)}
+                className={`relative p-6 rounded-[2rem] border-2 transition-all text-left group ${
+                  active ? "bg-indigo-600 border-indigo-500 shadow-xl shadow-indigo-900/40" : unlocked ? "bg-slate-900 border-slate-800 hover:border-slate-700" : "bg-slate-950 border-slate-900 opacity-60 grayscale cursor-not-allowed"
+                }`}
+              >
+                {!unlocked && <LockIcon className="absolute top-4 right-4 text-slate-700" size={16} />}
+                <p className={`text-[10px] font-black uppercase tracking-widest mb-2 ${active ? "text-indigo-200" : "text-slate-500"}`}>Chapter {chap.order}</p>
+                <h4 className={`text-sm font-black italic leading-tight ${active ? "text-white" : "text-slate-300"}`}>{chap.title.split(": ")[1]}</h4>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-12">
+        <div className="lg:col-span-8 space-y-8">
+          <div className="flex justify-between items-center">
+            <h3 className="text-xl font-black text-white uppercase italic tracking-tight">Available Quests</h3>
+            <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{chapterQuests.length} Challenges Found</span>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
-            {currentChapterQuests.length > 0 ? (
-              currentChapterQuests.map((lvl: any, idx: number) => {
-                const isDone = completedQuestIds.includes(lvl.id);
-                const isLocked = idx > 0 && !completedQuestIds.includes(currentChapterQuests[idx - 1].id);
+          {chapterQuests.length === 0 ? (
+            <div className="bg-slate-900/50 border-2 border-dashed border-slate-800 rounded-[3rem] p-12 text-center">
+              <p className="text-slate-500 font-bold italic">Sensei is still preparing quests for this chapter...</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+              {chapterQuests.map((quest) => {
+                const completed = getQuestStatus(quest.id);
                 return (
                   <div
-                    key={lvl.id}
-                    onClick={() => !isLocked && (setActiveQuest(lvl), setView("quest-detail"), setIsQuizMode(false))}
-                    className={`relative h-48 md:h-64 rounded-[2rem] md:rounded-[3rem] overflow-hidden cursor-pointer group border-4 transition-all ${
-                      isDone ? "border-emerald-500/30" : isLocked ? "border-slate-900 opacity-40 grayscale pointer-events-none" : "border-slate-800 hover:border-indigo-600 shadow-xl"
-                    }`}
+                    key={quest.id}
+                    onClick={() => {
+                      setActiveQuest(quest);
+                      setView("quest-detail");
+                    }}
+                    className="group bg-slate-900 rounded-[2.5rem] border border-slate-800 overflow-hidden cursor-pointer transition-all hover:scale-[1.02] hover:border-indigo-500/50 shadow-sm"
                   >
-                    <img
-                      src={lvl.imageUrl || "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=800"}
-                      className="absolute inset-0 w-full h-full object-cover group-hover:scale-110 transition-transform duration-1000"
-                      alt={lvl.title}
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-900/20 to-transparent" />
-                    <div className="absolute inset-0 p-6 md:p-8 flex flex-col justify-between">
-                      <div className="flex justify-between items-start">
-                        <span className="bg-black/40 backdrop-blur-md px-3 py-1 rounded-full text-[8px] md:text-[9px] font-black uppercase tracking-widest text-white border border-white/10">Quest {lvl.order}</span>
-                        {isDone && (
-                          <div className="bg-emerald-500 p-1.5 md:p-2 rounded-lg md:rounded-xl text-white shadow-lg">
-                            <CheckCircle2 size={14} />
-                          </div>
-                        )}
+                    <div className="h-40 relative">
+                      <img src={quest.imageUrl || "https://images.unsplash.com/photo-1456513080510-7bf3a84b82f8?w=800"} className="w-full h-full object-cover" />
+                      <div className="absolute inset-0 bg-gradient-to-t from-slate-900" />
+                      {completed && (
+                        <div className="absolute top-4 right-4 bg-emerald-500 text-white p-1.5 rounded-xl shadow-lg shadow-emerald-900/40">
+                          <CheckCircle2 size={16} />
+                        </div>
+                      )}
+                      <div className="absolute bottom-4 left-6">
+                        <span className="text-[9px] font-black text-indigo-400 bg-indigo-950/80 backdrop-blur-md px-3 py-1 rounded-full border border-indigo-500/30 uppercase tracking-widest">Quest {quest.order}</span>
                       </div>
+                    </div>
+                    <div className="p-6 space-y-4">
                       <div>
-                        <p className="text-[9px] md:text-[10px] font-black uppercase text-indigo-400 tracking-widest mb-1">{lvl.topic}</p>
-                        <h3 className="text-lg md:text-2xl font-black uppercase text-white italic line-clamp-1">{lvl.title}</h3>
+                        <h4 className="text-lg font-black text-white italic">{quest.title}</h4>
+                        <p className="text-[10px] font-bold text-slate-500 uppercase mt-1">{quest.topic}</p>
+                      </div>
+                      <div className="flex justify-between items-center pt-4 border-t border-slate-800">
+                        <div className="flex items-center gap-2 text-indigo-400">
+                          <Zap size={14} />
+                          <span className="text-[10px] font-black uppercase">{quest.rewardPoints} XP</span>
+                        </div>
+                        <ArrowRight size={16} className="text-slate-600 group-hover:text-indigo-500 group-hover:translate-x-1 transition-all" />
                       </div>
                     </div>
                   </div>
                 );
-              })
-            ) : (
-              <div className="col-span-full py-16 md:py-20 text-center bg-slate-950/50 rounded-[2.5rem] md:rounded-[3rem] border-2 border-dashed border-slate-800">
-                <Bot size={40} className="mx-auto mb-4 text-slate-700" />
-                <p className="text-xs md:text-sm font-black uppercase tracking-widest text-slate-600 px-6">Chapter content has not been published yet.</p>
-              </div>
-            )}
+              })}
+            </div>
+          )}
+        </div>
+
+        <div className="lg:col-span-4 space-y-8">
+          <div className="bg-slate-900 p-8 rounded-[3rem] border border-slate-800">
+            <h3 className="text-sm font-black text-white uppercase italic tracking-widest mb-6 flex items-center gap-2">
+              <Trophy className="text-amber-500" size={18} /> Hall of Fame
+            </h3>
+            <LeaderboardList users={dbUsers} limit={5} highlightId={user.id} />
+          </div>
+
+          <div className="bg-indigo-600 p-8 rounded-[3rem] shadow-xl shadow-indigo-900/20 relative overflow-hidden group">
+            <Sparkles className="absolute -top-4 -right-4 text-white opacity-20 w-24 h-24 group-hover:rotate-12 transition-transform" />
+            <h3 className="text-white font-black italic text-xl mb-2 relative z-10">Study Tip</h3>
+            <p className="text-indigo-100 text-xs font-bold leading-relaxed relative z-10 opacity-90">Ulangi materi yang sudah kamu selesaikan untuk memperkuat ingatanmu. AI Sensei selalu siap membantu!</p>
           </div>
         </div>
       </div>
@@ -252,20 +257,22 @@ const StudentDashboard = ({ user, dbUsers, dbProgress, dbLevels, setActiveQuest,
   );
 };
 
-const TeacherDashboard = ({ dbUsers, dbLevels, onUpdateConfig, onRewardUser, systemConfig, showAlert, loadData }: any) => {
+const TeacherDashboard = ({ dbUsers, dbLevels, onUpdateConfig, onRewardUser, systemConfig, showAlert, loadData, apiStatus }: any) => {
   const [activeTab, setActiveTab] = useState<"students" | "chapters" | "leaderboard" | "settings">("students");
   const [managedChapterId, setManagedChapterId] = useState<string | null>(null);
   const [announcement, setAnnouncement] = useState(systemConfig.announcement || "");
-  const [generatingChapter, setGeneratingChapter] = useState<string | null>(null);
-  const [questionsPerQuestMap, setQuestionsPerQuestMap] = useState<Record<string, number>>({});
+  const [isGenerating, setIsGenerating] = useState(false);
 
   const handleBulkGenerate = async (chapter: Chapter) => {
-    const qCount = questionsPerQuestMap[chapter.id] || 5;
-    if (!confirm(`Generate AI Quests for ${chapter.title}?`)) return;
-    setGeneratingChapter(chapter.id);
-    showAlert("AI Sensei is designing the curriculum...");
+    if (!apiStatus) return showAlert("AI Engine not connected. Check API Key!");
+    if (!confirm(`Generate sequence of ${chapter.totalQuests} quests for ${chapter.title}?`)) return;
+
+    setIsGenerating(true);
+    showAlert("Sensei is designing the curriculum...");
+
     try {
-      const generatedData = await generateChapterQuests(chapter.id, chapter.title, chapter.totalQuests, qCount);
+      const generatedData = await generateChapterQuests(chapter.id, chapter.title, chapter.totalQuests, 5);
+
       for (let i = 0; i < generatedData.length; i++) {
         const qData = generatedData[i];
         await dbService.saveQuest({
@@ -283,12 +290,14 @@ const TeacherDashboard = ({ dbUsers, dbLevels, onUpdateConfig, onRewardUser, sys
           status: "draft",
         } as Quest);
       }
+
       showAlert("Success! Quests generated as drafts.");
       await loadData();
     } catch (e: any) {
-      showAlert("Generation failed.");
+      console.error(e);
+      showAlert("Generation failed. Check API Key or try again.");
     } finally {
-      setGeneratingChapter(null);
+      setIsGenerating(false);
     }
   };
 
@@ -300,17 +309,6 @@ const TeacherDashboard = ({ dbUsers, dbLevels, onUpdateConfig, onRewardUser, sys
       await loadData();
     } catch (e) {
       showAlert("Status update failed.");
-    }
-  };
-
-  const toggleQuestStatus = async (quest: Quest) => {
-    try {
-      const newStatus = quest.status === "published" ? "draft" : "published";
-      await dbService.saveQuest({ ...quest, status: newStatus });
-      showAlert(`Quest set to ${newStatus}.`);
-      await loadData();
-    } catch (e) {
-      showAlert("Quest update failed.");
     }
   };
 
@@ -332,12 +330,6 @@ const TeacherDashboard = ({ dbUsers, dbLevels, onUpdateConfig, onRewardUser, sys
                 </div>
               </div>
               <div className="flex gap-2">
-                <button
-                  onClick={() => toggleQuestStatus(q)}
-                  className={`px-4 py-2 rounded-xl text-[9px] font-black uppercase border transition-all ${q.status === "published" ? "bg-indigo-950 text-indigo-400 border-indigo-900/50" : "bg-slate-950 text-slate-400 border-slate-800"}`}
-                >
-                  {q.status === "published" ? "Published" : "Draft"}
-                </button>
                 <button
                   onClick={async () => {
                     if (confirm("Delete?")) {
@@ -369,6 +361,7 @@ const TeacherDashboard = ({ dbUsers, dbLevels, onUpdateConfig, onRewardUser, sys
           ))}
         </div>
       </div>
+
       {activeTab === "students" && (
         <div className="bg-slate-900 rounded-[3rem] border border-slate-800 p-8 overflow-x-auto">
           <table className="w-full text-left">
@@ -397,13 +390,22 @@ const TeacherDashboard = ({ dbUsers, dbLevels, onUpdateConfig, onRewardUser, sys
           </table>
         </div>
       )}
+
       {activeTab === "chapters" && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 relative">
+          {isGenerating && (
+            <div className="absolute inset-0 z-50 bg-slate-950/50 backdrop-blur-sm flex items-center justify-center rounded-[3rem]">
+              <div className="flex flex-col items-center gap-4">
+                <Loader2 size={40} className="animate-spin text-indigo-500" />
+                <p className="text-xs font-black uppercase text-white animate-pulse">AI is working...</p>
+              </div>
+            </div>
+          )}
           {CHAPTERS.map((chap) => {
             const chapQuests = dbLevels.filter((q: any) => q.chapterId === chap.id);
             const isPublished = chapQuests.length > 0 && chapQuests.every((q: any) => q.status === "published");
             return (
-              <div key={chap.id} className="bg-slate-900 p-10 rounded-[3rem] border border-slate-800 space-y-6 flex flex-col justify-between">
+              <div key={chap.id} className="bg-slate-900 p-10 rounded-[3rem] border border-slate-800 space-y-6 flex flex-col justify-between group hover:border-indigo-500/50 transition-all">
                 <div>
                   <div className="flex justify-between items-start mb-4">
                     <div className="w-12 h-12 bg-indigo-950 rounded-2xl flex items-center justify-center text-indigo-500">
@@ -414,15 +416,17 @@ const TeacherDashboard = ({ dbUsers, dbLevels, onUpdateConfig, onRewardUser, sys
                     </button>
                   </div>
                   <h3 className="text-2xl font-black text-white italic">{chap.title}</h3>
-                  <p className="text-xs text-slate-500 font-bold mt-2">{chapQuests.length} Quests created.</p>
+                  <p className="text-xs text-slate-500 font-bold mt-2">
+                    {chapQuests.length} / {chap.totalQuests} Quests created.
+                  </p>
                 </div>
                 <div className="pt-6 border-t border-slate-800 space-y-3">
                   <button
                     onClick={() => handleBulkGenerate(chap)}
-                    disabled={generatingChapter === chap.id}
-                    className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black uppercase text-[10px] flex items-center justify-center gap-2"
+                    disabled={isGenerating || chapQuests.length >= chap.totalQuests}
+                    className="w-full py-4 bg-indigo-600 disabled:opacity-50 text-white rounded-2xl font-black uppercase text-[10px] flex items-center justify-center gap-2"
                   >
-                    {generatingChapter === chap.id ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />} Generate Full Chapter
+                    <Sparkles size={16} /> {chapQuests.length >= chap.totalQuests ? "Materi Lengkap" : "Generate Full Chapter"}
                   </button>
                   <button onClick={() => setManagedChapterId(chap.id)} className="w-full py-4 bg-slate-950 text-slate-400 border border-slate-800 rounded-2xl font-black uppercase text-[10px] flex items-center justify-center gap-2">
                     <Settings2 size={16} /> Manage Quests
@@ -433,6 +437,7 @@ const TeacherDashboard = ({ dbUsers, dbLevels, onUpdateConfig, onRewardUser, sys
           })}
         </div>
       )}
+
       {activeTab === "leaderboard" && (
         <div className="max-w-2xl mx-auto bg-slate-900 p-10 rounded-[3rem] border border-slate-800 shadow-2xl">
           <h3 className="text-2xl font-black text-white italic mb-8 uppercase flex items-center gap-3">
@@ -441,13 +446,33 @@ const TeacherDashboard = ({ dbUsers, dbLevels, onUpdateConfig, onRewardUser, sys
           <LeaderboardList users={dbUsers} />
         </div>
       )}
+
       {activeTab === "settings" && (
-        <div className="max-w-xl mx-auto bg-slate-900 p-10 rounded-[3rem] border border-slate-800 space-y-6">
-          <h3 className="text-xl font-black text-white uppercase italic">Broadcast Center</h3>
-          <textarea value={announcement} onChange={(e) => setAnnouncement(e.target.value)} className="w-full h-40 p-5 bg-slate-950 border border-slate-800 rounded-2xl text-white text-sm outline-none" placeholder="Message..." />
-          <button onClick={() => onUpdateConfig({ announcement })} className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black uppercase text-xs">
-            Update
-          </button>
+        <div className="max-w-xl mx-auto space-y-6">
+          <div className="bg-slate-900 p-8 rounded-[3rem] border border-slate-800 space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-xs font-black text-white uppercase tracking-widest italic flex items-center gap-2">
+                <Activity size={14} className="text-indigo-400" /> Engine Config
+              </h3>
+              <div className={`flex items-center gap-2 px-3 py-1 rounded-full text-[10px] font-black uppercase border ${apiStatus ? "bg-emerald-950 text-emerald-500 border-emerald-900" : "bg-rose-950 text-rose-500 border-rose-900"}`}>
+                {apiStatus ? <Wifi size={12} /> : <WifiOff size={12} />} {apiStatus ? "Connected" : "Disconnected"}
+              </div>
+            </div>
+            <p className="text-[10px] text-slate-500 font-bold uppercase">AI Engine Status: {apiStatus ? "Gemini 3 Flash Ready" : "API Key Missing/Invalid"}</p>
+          </div>
+
+          <div className="bg-slate-900 p-10 rounded-[3rem] border border-slate-800 space-y-6">
+            <h3 className="text-xl font-black text-white uppercase italic">Broadcast Center</h3>
+            <textarea
+              value={announcement}
+              onChange={(e) => setAnnouncement(e.target.value)}
+              className="w-full h-40 p-5 bg-slate-950 border border-slate-800 rounded-2xl text-white text-sm outline-none focus:border-indigo-500 transition-colors"
+              placeholder="Message..."
+            />
+            <button onClick={() => onUpdateConfig({ announcement })} className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black uppercase text-xs shadow-lg shadow-indigo-900/20">
+              Update Broadcast
+            </button>
+          </div>
         </div>
       )}
     </div>
@@ -474,6 +499,7 @@ const App = () => {
   const [loginForm, setLoginForm] = useState({ username: "", password: "", name: "" });
   const [isRegistering, setIsRegistering] = useState(false);
   const [alert, setAlert] = useState<string | null>(null);
+  const [apiStatus, setApiStatus] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -503,6 +529,8 @@ const App = () => {
       } else setDbLevels(quests);
       setDbProgress(progress);
       if (config) setSystemConfig(config);
+
+      if (process.env.API_KEY && process.env.API_KEY.length > 10) setApiStatus(true);
     } catch (e) {
       console.error("Load failed:", e);
     } finally {
@@ -527,11 +555,7 @@ const App = () => {
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!loginForm.username || !loginForm.password || !loginForm.name) {
-      return showAlert("Harap isi semua bidang!");
-    }
-
-    // Cek apakah username sudah ada
+    if (!loginForm.username || !loginForm.password || !loginForm.name) return showAlert("Harap isi semua bidang!");
     const exists = dbUsers.find((u) => u.username === loginForm.username);
     if (exists) return showAlert("Username sudah digunakan!");
 
@@ -549,7 +573,7 @@ const App = () => {
     try {
       await dbService.saveUser(newUser);
       setDbUsers((p) => [...p, newUser]);
-      setUser(newUser); // Auto login
+      setUser(newUser);
       showAlert("Berhasil terdaftar!");
     } catch (e) {
       showAlert("Gagal pendaftaran.");
@@ -635,6 +659,11 @@ const App = () => {
 
   return (
     <Layout user={user} onLogout={() => setUser(null)} onViewChange={setView} activeView={view}>
+      <div className="fixed top-2 right-4 z-[60] md:flex hidden items-center gap-2 px-4 py-2 bg-slate-900/80 backdrop-blur-md rounded-2xl border border-slate-800 shadow-xl">
+        <div className={`w-2 h-2 rounded-full ${apiStatus ? "bg-emerald-500 animate-pulse" : "bg-rose-500"}`} />
+        <span className="text-[9px] font-black uppercase text-slate-400 tracking-widest">AI Status: {apiStatus ? "Active" : "Offline"}</span>
+      </div>
+
       {view === "dashboard" && user?.role === UserRole.STUDENT && (
         <StudentDashboard user={user} dbUsers={dbUsers} dbProgress={dbProgress} dbLevels={dbLevels} setActiveQuest={setActiveQuest} setView={setView} setIsQuizMode={setIsQuizMode} />
       )}
@@ -656,8 +685,10 @@ const App = () => {
           systemConfig={systemConfig}
           showAlert={showAlert}
           loadData={loadData}
+          apiStatus={apiStatus}
         />
       )}
+
       {view === "quest-detail" && activeQuest && (
         <div className="max-w-7xl mx-auto py-8 md:py-12 px-4 md:px-6">
           {!isQuizMode ? (
@@ -692,7 +723,6 @@ const App = () => {
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-12 gap-8 items-start relative">
-              {/* Reference Material - Visible on md+ */}
               <div className="hidden md:block md:col-span-4 sticky top-24 bg-slate-900 p-8 rounded-[3rem] border border-slate-800 max-h-[calc(100vh-120px)] overflow-y-auto custom-scrollbar shadow-2xl">
                 <div className="flex items-center gap-3 mb-6 pb-4 border-b border-slate-800">
                   <BookOpen className="text-indigo-400" size={24} />
@@ -700,8 +730,6 @@ const App = () => {
                 </div>
                 <ContentRenderer content={activeQuest.content} compact />
               </div>
-
-              {/* Mobile Floating Button to show material */}
               <div className="md:hidden fixed bottom-32 left-6 z-50">
                 <button
                   onClick={() => setShowMobileReference(!showMobileReference)}
@@ -721,8 +749,6 @@ const App = () => {
                   </div>
                 )}
               </div>
-
-              {/* Main Quiz Area */}
               <div className="md:col-span-8 w-full max-w-2xl mx-auto space-y-6">
                 <div className="md:hidden bg-indigo-900/20 border border-indigo-500/30 p-4 rounded-2xl flex items-center justify-between mb-4">
                   <div className="flex items-center gap-2 text-indigo-300">
