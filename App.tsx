@@ -32,6 +32,8 @@ import {
   Activity,
   Wifi,
   WifiOff,
+  Link,
+  RotateCcw,
 } from "lucide-react";
 import { INITIAL_CURRICULUM, DEFAULT_USERS, CHAPTERS } from "./constants.tsx";
 import { User, UserRole, Quest, Progress, SystemConfig, Chapter } from "./types.ts";
@@ -40,6 +42,18 @@ import QuizEngine from "./components/QuizEngine.tsx";
 import AISensei from "./components/AISensei.tsx";
 import { dbService } from "./services/dbService.ts";
 import { generateQuestImage, generateChapterQuests } from "./services/geminiService.ts";
+
+// --- Global helper for API Key Dialog ---
+// Fix: Declare AIStudio and Window extensions to match the existing global type definition
+declare global {
+  interface AIStudio {
+    hasSelectedApiKey: () => Promise<boolean>;
+    openSelectKey: () => Promise<void>;
+  }
+  interface Window {
+    readonly aistudio: AIStudio;
+  }
+}
 
 // --- Sub-components ---
 
@@ -257,14 +271,14 @@ const StudentDashboard = ({ user, dbUsers, dbProgress, dbLevels, setActiveQuest,
   );
 };
 
-const TeacherDashboard = ({ dbUsers, dbLevels, onUpdateConfig, onRewardUser, systemConfig, showAlert, loadData, apiStatus }: any) => {
+const TeacherDashboard = ({ dbUsers, dbLevels, onUpdateConfig, onRewardUser, systemConfig, showAlert, loadData, apiStatus, onConnectKey }: any) => {
   const [activeTab, setActiveTab] = useState<"students" | "chapters" | "leaderboard" | "settings">("students");
   const [managedChapterId, setManagedChapterId] = useState<string | null>(null);
   const [announcement, setAnnouncement] = useState(systemConfig.announcement || "");
   const [isGenerating, setIsGenerating] = useState(false);
 
   const handleBulkGenerate = async (chapter: Chapter) => {
-    if (!apiStatus) return showAlert("AI Engine not connected. Check API Key!");
+    if (!apiStatus) return showAlert("AI Engine not connected. Check API Key in Settings!");
     if (!confirm(`Generate sequence of ${chapter.totalQuests} quests for ${chapter.title}?`)) return;
 
     setIsGenerating(true);
@@ -295,7 +309,12 @@ const TeacherDashboard = ({ dbUsers, dbLevels, onUpdateConfig, onRewardUser, sys
       await loadData();
     } catch (e: any) {
       console.error(e);
-      showAlert("Generation failed. Check API Key or try again.");
+      if (e.message?.includes("not found")) {
+        showAlert("API Key expired or invalid. Reconnecting...");
+        onConnectKey();
+      } else {
+        showAlert("Generation failed. Check connection and try again.");
+      }
     } finally {
       setIsGenerating(false);
     }
@@ -449,16 +468,42 @@ const TeacherDashboard = ({ dbUsers, dbLevels, onUpdateConfig, onRewardUser, sys
 
       {activeTab === "settings" && (
         <div className="max-w-xl mx-auto space-y-6">
-          <div className="bg-slate-900 p-8 rounded-[3rem] border border-slate-800 space-y-4">
+          <div className="bg-slate-900 p-10 rounded-[3rem] border border-slate-800 space-y-8">
             <div className="flex items-center justify-between">
-              <h3 className="text-xs font-black text-white uppercase tracking-widest italic flex items-center gap-2">
-                <Activity size={14} className="text-indigo-400" /> Engine Config
+              <h3 className="text-sm font-black text-white uppercase tracking-widest italic flex items-center gap-2">
+                <Activity size={18} className="text-indigo-400" /> Engine Config
               </h3>
-              <div className={`flex items-center gap-2 px-3 py-1 rounded-full text-[10px] font-black uppercase border ${apiStatus ? "bg-emerald-950 text-emerald-500 border-emerald-900" : "bg-rose-950 text-rose-500 border-rose-900"}`}>
+              <div
+                className={`flex items-center gap-2 px-4 py-1.5 rounded-full text-[10px] font-black uppercase border transition-all ${apiStatus ? "bg-emerald-950 text-emerald-500 border-emerald-900" : "bg-rose-950 text-rose-500 border-rose-900"}`}
+              >
                 {apiStatus ? <Wifi size={12} /> : <WifiOff size={12} />} {apiStatus ? "Connected" : "Disconnected"}
               </div>
             </div>
-            <p className="text-[10px] text-slate-500 font-bold uppercase">AI Engine Status: {apiStatus ? "Gemini 3 Flash Ready" : "API Key Missing/Invalid"}</p>
+
+            <div className="p-6 bg-slate-950 rounded-2xl border border-slate-800 space-y-4">
+              <p className="text-[10px] text-slate-500 font-black uppercase tracking-[0.2em]">AI Status: {apiStatus ? "Gemini 3 Flash Ready" : "API Key Missing/Invalid"}</p>
+              {!apiStatus ? (
+                <button
+                  onClick={onConnectKey}
+                  className="w-full py-5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-black uppercase text-xs flex items-center justify-center gap-3 shadow-xl shadow-indigo-900/20 transition-all active:scale-95"
+                >
+                  <Key size={18} /> Connect AI Engine
+                </button>
+              ) : (
+                <button
+                  onClick={onConnectKey}
+                  className="w-full py-5 bg-slate-900 hover:bg-slate-800 text-indigo-400 rounded-xl border border-indigo-900/30 font-black uppercase text-xs flex items-center justify-center gap-3 transition-all"
+                >
+                  <RotateCcw size={18} /> Update / Switch Key
+                </button>
+              )}
+              <div className="flex items-center gap-2 pt-2">
+                <Link size={14} className="text-indigo-400" />
+                <a href="https://ai.google.dev/gemini-api/docs/billing" target="_blank" className="text-[9px] font-black text-slate-500 uppercase hover:text-indigo-400 underline transition-all">
+                  Billing Documentation
+                </a>
+              </div>
+            </div>
           </div>
 
           <div className="bg-slate-900 p-10 rounded-[3rem] border border-slate-800 space-y-6">
@@ -516,6 +561,27 @@ const App = () => {
     setTimeout(() => setAlert(null), 3000);
   }, []);
 
+  const checkApiStatus = useCallback(async () => {
+    try {
+      const hasKey = await window.aistudio.hasSelectedApiKey();
+      setApiStatus(hasKey);
+    } catch (e) {
+      // Fallback to process.env.API_KEY if bridge is not available
+      if (process.env.API_KEY && process.env.API_KEY.length > 10) setApiStatus(true);
+    }
+  }, []);
+
+  const handleConnectKey = async () => {
+    try {
+      await window.aistudio.openSelectKey();
+      // Assume successful and proceed
+      setApiStatus(true);
+      showAlert("AI Engine Connected!");
+    } catch (e) {
+      showAlert("Connection failed.");
+    }
+  };
+
   const loadData = useCallback(async () => {
     try {
       const [users, quests, progress, config] = await Promise.all([dbService.getUsers(), dbService.getQuests(), dbService.getProgress(), dbService.getConfig()]);
@@ -530,13 +596,13 @@ const App = () => {
       setDbProgress(progress);
       if (config) setSystemConfig(config);
 
-      if (process.env.API_KEY && process.env.API_KEY.length > 10) setApiStatus(true);
+      await checkApiStatus();
     } catch (e) {
       console.error("Load failed:", e);
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [checkApiStatus]);
 
   useEffect(() => {
     loadData();
@@ -686,6 +752,7 @@ const App = () => {
           showAlert={showAlert}
           loadData={loadData}
           apiStatus={apiStatus}
+          onConnectKey={handleConnectKey}
         />
       )}
 
