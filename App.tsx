@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   CheckCircle2,
   AlertCircle,
@@ -56,6 +56,16 @@ declare global {
     aistudio?: AIStudio;
   }
 }
+
+// --- Sound Utility ---
+const SOUNDS = {
+  success: "https://assets.mixkit.co/active_storage/sfx/2000/2000-preview.mp3",
+  page: "https://assets.mixkit.co/active_storage/sfx/1470/1470-preview.mp3",
+  click: "https://assets.mixkit.co/active_storage/sfx/2571/2571-preview.mp3",
+  correct: "https://assets.mixkit.co/active_storage/sfx/1435/1435-preview.mp3",
+  wrong: "https://assets.mixkit.co/active_storage/sfx/2568/2568-preview.mp3",
+  victory: "https://assets.mixkit.co/active_storage/sfx/2013/2013-preview.mp3",
+};
 
 // --- Sub-components ---
 
@@ -139,7 +149,7 @@ const LeaderboardList: React.FC<{ users: User[]; limit?: number; highlightId?: s
 };
 
 // --- Student Dashboard Component ---
-const StudentDashboard = ({ user, dbUsers, dbProgress, dbLevels, setActiveQuest, setView, setIsQuizMode }: any) => {
+const StudentDashboard = ({ user, dbUsers, dbProgress, dbLevels, setActiveQuest, setView, setIsQuizMode, playSound }: any) => {
   const [selectedChapter, setSelectedChapter] = useState<string>(user?.unlockedChapters?.[0] || "bab1");
 
   const chapterQuests = dbLevels.filter((q: any) => q.chapterId === selectedChapter && q.status === "published");
@@ -184,7 +194,12 @@ const StudentDashboard = ({ user, dbUsers, dbProgress, dbLevels, setActiveQuest,
             return (
               <button
                 key={chap.id}
-                onClick={() => unlocked && setSelectedChapter(chap.id)}
+                onClick={() => {
+                  if (unlocked) {
+                    setSelectedChapter(chap.id);
+                    playSound("click");
+                  }
+                }}
                 className={`relative p-6 rounded-[2rem] border-2 transition-all text-left group ${
                   active ? "bg-indigo-600 border-indigo-500 shadow-xl shadow-indigo-900/40" : unlocked ? "bg-slate-900 border-slate-800 hover:border-slate-700" : "bg-slate-950 border-slate-900 opacity-60 grayscale cursor-not-allowed"
                 }`}
@@ -219,6 +234,7 @@ const StudentDashboard = ({ user, dbUsers, dbProgress, dbLevels, setActiveQuest,
                     onClick={() => {
                       setActiveQuest(quest);
                       setView("quest-detail");
+                      playSound("page");
                     }}
                     className="group bg-slate-900 rounded-[2.5rem] border border-slate-800 overflow-hidden cursor-pointer transition-all hover:scale-[1.02] hover:border-indigo-500/50 shadow-sm"
                   >
@@ -273,7 +289,7 @@ const StudentDashboard = ({ user, dbUsers, dbProgress, dbLevels, setActiveQuest,
   );
 };
 
-const TeacherDashboard = ({ dbUsers, dbLevels, onUpdateConfig, onRewardUser, systemConfig, showAlert, loadData, apiStatus, onConnectKey }: any) => {
+const TeacherDashboard = ({ dbUsers, dbLevels, onUpdateConfig, onRewardUser, systemConfig, showAlert, loadData, apiStatus, onConnectKey, playSound }: any) => {
   const [activeTab, setActiveTab] = useState<"students" | "chapters" | "leaderboard" | "settings">("students");
   const [managedChapterId, setManagedChapterId] = useState<string | null>(null);
   const [announcement, setAnnouncement] = useState(systemConfig.announcement || "");
@@ -284,6 +300,7 @@ const TeacherDashboard = ({ dbUsers, dbLevels, onUpdateConfig, onRewardUser, sys
   const saveManualKey = () => {
     if (manualKey.length < 10) return showAlert("Kode Akses tidak valid!");
     localStorage.setItem("quest8_api_key", manualKey);
+    playSound("success");
     showAlert("Sensei Berhasil Diaktifkan!");
     setTimeout(() => window.location.reload(), 800);
   };
@@ -293,6 +310,7 @@ const TeacherDashboard = ({ dbUsers, dbLevels, onUpdateConfig, onRewardUser, sys
     if (!confirm(`Buat ${chapter.totalQuests} quest secara otomatis untuk ${chapter.title}?`)) return;
 
     setIsGenerating(true);
+    playSound("click");
     showAlert("Sensei sedang merancang kurikulum...");
 
     try {
@@ -316,6 +334,7 @@ const TeacherDashboard = ({ dbUsers, dbLevels, onUpdateConfig, onRewardUser, sys
         } as Quest);
       }
 
+      playSound("success");
       showAlert("Berhasil! Quest telah dibuat sebagai draf.");
       await loadData();
     } catch (e: any) {
@@ -330,6 +349,7 @@ const TeacherDashboard = ({ dbUsers, dbLevels, onUpdateConfig, onRewardUser, sys
     const questsToUpdate = dbLevels.filter((q: any) => q.chapterId === chapterId);
     try {
       await Promise.all(questsToUpdate.map((q: any) => dbService.saveQuest({ ...q, status: publish ? "published" : "draft" })));
+      playSound("click");
       showAlert(`Bab ${publish ? "Berhasil Dipublikasi" : "Kembali ke Draf"}.`);
       await loadData();
     } catch (e) {
@@ -341,7 +361,13 @@ const TeacherDashboard = ({ dbUsers, dbLevels, onUpdateConfig, onRewardUser, sys
     const quests = dbLevels.filter((q: any) => q.chapterId === managedChapterId);
     return (
       <div className="max-w-7xl mx-auto py-8 md:py-12 px-4 md:px-6 space-y-6">
-        <button onClick={() => setManagedChapterId(null)} className="flex items-center gap-2 text-[10px] font-black uppercase text-slate-500">
+        <button
+          onClick={() => {
+            setManagedChapterId(null);
+            playSound("click");
+          }}
+          className="flex items-center gap-2 text-[10px] font-black uppercase text-slate-500"
+        >
           <ChevronLeft size={16} /> Kembali
         </button>
         <div className="grid grid-cols-1 gap-3">
@@ -380,7 +406,14 @@ const TeacherDashboard = ({ dbUsers, dbLevels, onUpdateConfig, onRewardUser, sys
         <h2 className="text-4xl font-black uppercase italic text-white">Teacher Terminal</h2>
         <div className="flex bg-slate-900 p-2 rounded-2xl border border-slate-800 gap-1 overflow-x-auto">
           {["students", "chapters", "leaderboard", "settings"].map((t) => (
-            <button key={t} onClick={() => setActiveTab(t as any)} className={`px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === t ? "bg-indigo-600 text-white" : "text-slate-500"}`}>
+            <button
+              key={t}
+              onClick={() => {
+                setActiveTab(t as any);
+                playSound("click");
+              }}
+              className={`px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === t ? "bg-indigo-600 text-white" : "text-slate-500"}`}
+            >
               {t}
             </button>
           ))}
@@ -405,7 +438,14 @@ const TeacherDashboard = ({ dbUsers, dbLevels, onUpdateConfig, onRewardUser, sys
                     <td className="py-5 font-bold">{s.name}</td>
                     <td className="text-center text-indigo-400 font-black">{s.xp}</td>
                     <td className="text-right">
-                      <button onClick={() => onRewardUser(s.id, 100)} className="p-2 text-amber-500" title="Beri Hadiah">
+                      <button
+                        onClick={() => {
+                          onRewardUser(s.id, 100);
+                          playSound("success");
+                        }}
+                        className="p-2 text-amber-500"
+                        title="Beri Hadiah"
+                      >
                         <Gift size={18} />
                       </button>
                     </td>
@@ -453,7 +493,13 @@ const TeacherDashboard = ({ dbUsers, dbLevels, onUpdateConfig, onRewardUser, sys
                   >
                     <Sparkles size={16} /> {chapQuests.length >= chap.totalQuests ? "Kurikulum Lengkap" : "Buat Materi Otomatis"}
                   </button>
-                  <button onClick={() => setManagedChapterId(chap.id)} className="w-full py-4 bg-slate-950 text-slate-400 border border-slate-800 rounded-2xl font-black uppercase text-[10px] flex items-center justify-center gap-2">
+                  <button
+                    onClick={() => {
+                      setManagedChapterId(chap.id);
+                      playSound("click");
+                    }}
+                    className="w-full py-4 bg-slate-950 text-slate-400 border border-slate-800 rounded-2xl font-black uppercase text-[10px] flex items-center justify-center gap-2"
+                  >
                     <Settings2 size={16} /> Kelola Quest
                   </button>
                 </div>
@@ -492,7 +538,13 @@ const TeacherDashboard = ({ dbUsers, dbLevels, onUpdateConfig, onRewardUser, sys
                   <p className="text-[11px] text-indigo-400 font-black uppercase tracking-[0.2em] flex items-center gap-2">
                     <Key size={14} /> Tempel Kode Akses Sensei Disini
                   </p>
-                  <button onClick={() => setShowKey(!showKey)} className="text-slate-500 hover:text-white transition-colors">
+                  <button
+                    onClick={() => {
+                      setShowKey(!showKey);
+                      playSound("click");
+                    }}
+                    className="text-slate-500 hover:text-white transition-colors"
+                  >
                     {showKey ? <EyeOff size={16} /> : <Eye size={16} />}
                   </button>
                 </div>
@@ -539,7 +591,13 @@ const TeacherDashboard = ({ dbUsers, dbLevels, onUpdateConfig, onRewardUser, sys
               className="w-full h-40 p-5 bg-slate-950 border border-slate-800 rounded-2xl text-white text-sm outline-none focus:border-indigo-500 transition-colors"
               placeholder="Tulis pesan untuk siswa..."
             />
-            <button onClick={() => onUpdateConfig({ announcement })} className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black uppercase text-xs shadow-lg shadow-indigo-900/20">
+            <button
+              onClick={() => {
+                onUpdateConfig({ announcement });
+                playSound("success");
+              }}
+              className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black uppercase text-xs shadow-lg shadow-indigo-900/20"
+            >
               Perbarui Pengumuman
             </button>
           </div>
@@ -570,6 +628,31 @@ const App = () => {
   const [isRegistering, setIsRegistering] = useState(false);
   const [alert, setAlert] = useState<string | null>(null);
   const [apiStatus, setApiStatus] = useState(false);
+
+  // Audio State
+  const [isMuted, setIsMuted] = useState(() => localStorage.getItem("quest8_muted") === "true");
+  const audioRefs = useRef<Record<string, HTMLAudioElement>>({});
+
+  useEffect(() => {
+    localStorage.setItem("quest8_muted", String(isMuted));
+  }, [isMuted]);
+
+  const playSound = useCallback(
+    (type: keyof typeof SOUNDS) => {
+      if (isMuted) return;
+      try {
+        if (!audioRefs.current[type]) {
+          audioRefs.current[type] = new Audio(SOUNDS[type]);
+        }
+        const audio = audioRefs.current[type];
+        audio.currentTime = 0;
+        audio.play().catch(() => {}); // Catch play errors (browsers often block auto-play)
+      } catch (e) {
+        console.warn("Sound error:", e);
+      }
+    },
+    [isMuted],
+  );
 
   useEffect(() => {
     if (user) {
@@ -636,8 +719,10 @@ const App = () => {
     if (!loginForm.username || !loginForm.password) return showAlert("Harap isi username dan password!");
     const found = dbUsers.find((u) => u.username === loginForm.username && u.password === loginForm.password);
     if (found) {
+      playSound("success");
       setUser(found);
     } else {
+      playSound("wrong");
       showAlert("Username/Password salah!");
     }
   };
@@ -646,7 +731,10 @@ const App = () => {
     e.preventDefault();
     if (!loginForm.username || !loginForm.password || !loginForm.name) return showAlert("Harap isi semua bidang!");
     const exists = dbUsers.find((u) => u.username === loginForm.username);
-    if (exists) return showAlert("Username sudah digunakan!");
+    if (exists) {
+      playSound("wrong");
+      return showAlert("Username sudah digunakan!");
+    }
 
     const newUser: User = {
       id: `u_${Date.now()}`,
@@ -662,6 +750,7 @@ const App = () => {
     try {
       await dbService.saveUser(newUser);
       setDbUsers((p) => [...p, newUser]);
+      playSound("success");
       setUser(newUser);
       showAlert("Berhasil terdaftar!");
     } catch (e) {
@@ -684,21 +773,18 @@ const App = () => {
         let updatedUnlockedChapters = [...(user.unlockedChapters || ["bab1"])];
 
         // 3. Jembatan Akses: Cek apakah Bab berikutnya harus dibuka
-        // Ambil semua quest bab ini yang berstatus 'published'
         const publishedQuestsInChapter = dbLevels.filter((q) => q.chapterId === activeQuest.chapterId && q.status === "published");
-        // Ambil progres siswa untuk bab ini (termasuk yang baru saja selesai)
         const completedQuestIds = new Set([...dbProgress.filter((p) => p.userId === user.id).map((p) => p.levelId), activeQuest.id]);
 
-        // Cek apakah semua quest di bab ini sudah selesai
         const isChapterComplete = publishedQuestsInChapter.every((q) => completedQuestIds.has(q.id));
 
         if (isChapterComplete) {
-          // Cari index bab saat ini di konstanta CHAPTERS
           const currentChapIdx = CHAPTERS.findIndex((c) => c.id === activeQuest.chapterId);
           if (currentChapIdx !== -1 && currentChapIdx < CHAPTERS.length - 1) {
             const nextChapter = CHAPTERS[currentChapIdx + 1];
             if (!updatedUnlockedChapters.includes(nextChapter.id)) {
               updatedUnlockedChapters.push(nextChapter.id);
+              playSound("victory");
               showAlert(`🎉 Selamat! Bab ${nextChapter.order} Berhasil Terbuka!`);
             }
           }
@@ -771,7 +857,14 @@ const App = () => {
             <button type="submit" className="w-full py-5 bg-indigo-600 text-white rounded-2xl font-black uppercase text-xs tracking-widest hover:bg-indigo-700 transition-all active:scale-[0.98] shadow-lg shadow-indigo-900/40">
               {isRegistering ? "Create Account" : "Enter the Realm"}
             </button>
-            <button type="button" onClick={() => setIsRegistering(!isRegistering)} className="w-full text-[10px] font-black uppercase text-slate-500 hover:text-indigo-400 transition-colors">
+            <button
+              type="button"
+              onClick={() => {
+                setIsRegistering(!isRegistering);
+                playSound("click");
+              }}
+              className="w-full text-[10px] font-black uppercase text-slate-500 hover:text-indigo-400 transition-colors"
+            >
               {isRegistering ? "Sudah punya akun? Masuk" : "Daftar Siswa Baru"}
             </button>
           </form>
@@ -781,15 +874,26 @@ const App = () => {
     );
 
   return (
-    <Layout user={user} onLogout={() => setUser(null)} onViewChange={setView} activeView={view}>
+    <Layout
+      user={user}
+      onLogout={() => setUser(null)}
+      onViewChange={(v) => {
+        setView(v);
+        playSound("click");
+      }}
+      activeView={view}
+      isMuted={isMuted}
+      onToggleMute={() => setIsMuted(!isMuted)}
+    >
       <div className="fixed top-2 right-4 z-[60] md:flex hidden items-center gap-2 px-4 py-2 bg-slate-900/80 backdrop-blur-md rounded-2xl border border-slate-800 shadow-xl">
         <div className={`w-2 h-2 rounded-full ${apiStatus ? "bg-emerald-500 animate-pulse" : "bg-rose-500"}`} />
         <span className="text-[9px] font-black uppercase text-slate-400 tracking-widest">AI Status: {apiStatus ? "Active" : "Offline"}</span>
       </div>
 
       {view === "dashboard" && user?.role === UserRole.STUDENT && (
-        <StudentDashboard user={user} dbUsers={dbUsers} dbProgress={dbProgress} dbLevels={dbLevels} setActiveQuest={setActiveQuest} setView={setView} setIsQuizMode={setIsQuizMode} />
+        <StudentDashboard user={user} dbUsers={dbUsers} dbProgress={dbProgress} dbLevels={dbLevels} setActiveQuest={setActiveQuest} setView={setView} setIsQuizMode={setIsQuizMode} playSound={playSound} />
       )}
+
       {view === "dashboard" && user?.role !== UserRole.STUDENT && (
         <TeacherDashboard
           dbUsers={dbUsers}
@@ -810,6 +914,7 @@ const App = () => {
           loadData={loadData}
           apiStatus={apiStatus}
           onConnectKey={handleConnectKey}
+          playSound={playSound}
         />
       )}
 
@@ -817,7 +922,13 @@ const App = () => {
         <div className="max-w-7xl mx-auto py-8 md:py-12 px-4 md:px-6">
           {!isQuizMode ? (
             <div className="max-w-4xl mx-auto space-y-12 animate-in fade-in duration-700">
-              <button onClick={() => setView("dashboard")} className="flex items-center gap-2 text-[10px] font-black uppercase text-slate-500">
+              <button
+                onClick={() => {
+                  setView("dashboard");
+                  playSound("click");
+                }}
+                className="flex items-center gap-2 text-[10px] font-black uppercase text-slate-500"
+              >
                 <ChevronLeft size={16} /> Back
               </button>
               <div className="relative h-72 md:h-[400px] rounded-[3rem] md:rounded-[4rem] overflow-hidden border-8 border-slate-900 shadow-2xl">
@@ -837,7 +948,10 @@ const App = () => {
                     </div>
                   </div>
                   <button
-                    onClick={() => setIsQuizMode(true)}
+                    onClick={() => {
+                      setIsQuizMode(true);
+                      playSound("click");
+                    }}
                     className="px-12 py-6 bg-indigo-600 text-white rounded-[2rem] font-black uppercase text-sm tracking-widest shadow-2xl flex items-center justify-center gap-4 hover:scale-105 transition-all"
                   >
                     Start Challenge <Zap size={20} />
@@ -856,7 +970,10 @@ const App = () => {
               </div>
               <div className="md:hidden fixed bottom-32 left-6 z-50">
                 <button
-                  onClick={() => setShowMobileReference(!showMobileReference)}
+                  onClick={() => {
+                    setShowMobileReference(!showMobileReference);
+                    playSound("click");
+                  }}
                   className="w-14 h-14 bg-emerald-600 text-white rounded-2xl shadow-2xl flex items-center justify-center hover:scale-110 active:scale-95 transition-all border border-emerald-500"
                 >
                   {showMobileReference ? <X size={24} /> : <BookOpen size={24} />}
@@ -865,7 +982,12 @@ const App = () => {
                   <div className="fixed inset-x-6 bottom-52 bg-slate-900 border-2 border-indigo-500 rounded-[2rem] p-6 shadow-2xl max-h-[60vh] overflow-y-auto animate-in slide-in-from-bottom-5">
                     <div className="flex justify-between items-center mb-4 border-b border-slate-800 pb-2">
                       <span className="text-[10px] font-black uppercase tracking-widest text-indigo-400">Reference</span>
-                      <button onClick={() => setShowMobileReference(false)}>
+                      <button
+                        onClick={() => {
+                          setShowMobileReference(false);
+                          playSound("click");
+                        }}
+                      >
                         <X size={16} className="text-slate-500" />
                       </button>
                     </div>
@@ -880,7 +1002,7 @@ const App = () => {
                     <span className="text-[10px] font-bold uppercase tracking-widest">Materi ada di tombol hijau</span>
                   </div>
                 </div>
-                <QuizEngine questions={activeQuest.questions} passingScore={activeQuest.passingScore} onFinish={onQuizFinish} />
+                <QuizEngine questions={activeQuest.questions} passingScore={activeQuest.passingScore} onFinish={onQuizFinish} playSound={playSound} />
               </div>
             </div>
           )}

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Trophy, X, ArrowRight, CheckCircle2, Clock, RotateCcw, Award, Star, ThumbsUp, Frown } from "lucide-react";
 import { Question } from "../types";
 
@@ -6,14 +6,31 @@ interface QuizEngineProps {
   questions: Question[];
   passingScore: number;
   onFinish: (score: number) => void;
+  playSound: (type: "correct" | "wrong" | "victory" | "click" | "success" | "page") => void;
 }
 
-const QuizEngine: React.FC<QuizEngineProps> = ({ questions, passingScore, onFinish }) => {
+const QuizEngine: React.FC<QuizEngineProps> = ({ questions, passingScore, onFinish, playSound }) => {
   const [step, setStep] = useState(0);
   const [answers, setAnswers] = useState<any[]>([]);
   const [finished, setFinished] = useState(false);
 
+  const isCorrect = (userAnswer: any, correctAnswer: any, type: "mcq" | "tf") => {
+    if (type === "tf") {
+      return Boolean(userAnswer) === Boolean(correctAnswer);
+    }
+    return Number(userAnswer) === Number(correctAnswer);
+  };
+
   const handleAnswer = (val: any) => {
+    const currentQuestion = questions[step];
+    const correct = isCorrect(val, currentQuestion.correct, currentQuestion.type);
+
+    if (correct) {
+      playSound("correct");
+    } else {
+      playSound("wrong");
+    }
+
     const updatedAnswers = [...answers, val];
     setAnswers(updatedAnswers);
 
@@ -24,12 +41,19 @@ const QuizEngine: React.FC<QuizEngineProps> = ({ questions, passingScore, onFini
     }
   };
 
-  const isCorrect = (userAnswer: any, correctAnswer: any, type: "mcq" | "tf") => {
-    if (type === "tf") {
-      return Boolean(userAnswer) === Boolean(correctAnswer);
+  useEffect(() => {
+    if (finished) {
+      const correctCount = answers.filter((ans, i) => {
+        return isCorrect(ans, questions[i].correct, questions[i].type);
+      }).length;
+      const score = Math.round((correctCount / questions.length) * 100);
+      if (score >= passingScore) {
+        playSound("victory");
+      } else {
+        playSound("wrong");
+      }
     }
-    return Number(userAnswer) === Number(correctAnswer);
-  };
+  }, [finished]);
 
   if (finished) {
     const correctCount = answers.filter((ans, i) => {
@@ -125,6 +149,7 @@ const QuizEngine: React.FC<QuizEngineProps> = ({ questions, passingScore, onFini
                 setStep(0);
                 setAnswers([]);
                 setFinished(false);
+                playSound("click");
               }}
               className="flex-1 py-5 bg-slate-900 text-white rounded-[2rem] font-black uppercase text-xs tracking-widest border border-slate-800 hover:bg-slate-800 transition-all flex items-center justify-center gap-3"
             >
@@ -132,7 +157,10 @@ const QuizEngine: React.FC<QuizEngineProps> = ({ questions, passingScore, onFini
             </button>
           )}
           <button
-            onClick={() => onFinish(score)}
+            onClick={() => {
+              onFinish(score);
+              playSound("click");
+            }}
             className={`flex-1 py-6 rounded-[2rem] font-black uppercase text-xs tracking-widest shadow-xl transition-all active:scale-95 flex items-center justify-center gap-3 ${isPassed ? "bg-indigo-600 text-white hover:bg-indigo-700 shadow-indigo-900/40" : "bg-slate-800 text-slate-100 hover:bg-slate-700"}`}
           >
             {isPassed ? "Ambil Reward" : "Kembali Belajar"}
