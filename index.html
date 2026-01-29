@@ -61,15 +61,12 @@
           "lucide-react": "https://esm.sh/lucide-react@^0.563.0",
           "firebase/app": "https://www.gstatic.com/firebasejs/11.3.1/firebase-app.js",
           "firebase/firestore": "https://www.gstatic.com/firebasejs/11.3.1/firebase-firestore.js",
-          "firebase/": "https://esm.sh/firebase@^12.8.0/",
-          "canvas-confetti": "https://esm.sh/canvas-confetti@^1.9.3"
+          "firebase/": "https://esm.sh/firebase@^12.8.0/"
         }
       }
     </script>
-    <script type="module">
-      import confetti from "canvas-confetti";
-      window.confetti = confetti;
-    </script>
+    <!-- Memanggil confetti sebagai global script agar Vite tidak mencoba meresolve-nya sebagai modul lokal -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
   </head>
   <body class="bg-slate-950 text-slate-100 overflow-x-hidden">
     <div id="root"></div>
