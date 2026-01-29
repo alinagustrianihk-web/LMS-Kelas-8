@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Trophy, X, ArrowRight, CheckCircle2, Clock, RotateCcw, Award, Star, ThumbsUp, Frown } from "lucide-react";
 import { Question } from "../types";
+import confetti from "canvas-confetti";
 
 interface QuizEngineProps {
   questions: Question[];
@@ -47,8 +48,17 @@ const QuizEngine: React.FC<QuizEngineProps> = ({ questions, passingScore, onFini
         return isCorrect(ans, questions[i].correct, questions[i].type);
       }).length;
       const score = Math.round((correctCount / questions.length) * 100);
+
       if (score >= passingScore) {
         playSound("victory");
+        if (score === 100) {
+          confetti({
+            particleCount: 150,
+            spread: 70,
+            origin: { y: 0.6 },
+            colors: ["#4f46e5", "#818cf8", "#ffffff", "#fbbf24"],
+          });
+        }
       } else {
         playSound("wrong");
       }

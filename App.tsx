@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import {
   CheckCircle2,
   AlertCircle,
@@ -37,6 +37,8 @@ import {
   RotateCcw,
   Save,
   ClipboardCheck,
+  BarChart3,
+  TrendingUp,
 } from "lucide-react";
 import { INITIAL_CURRICULUM, DEFAULT_USERS, CHAPTERS } from "./constants.tsx";
 import { User, UserRole, Quest, Progress, SystemConfig, Chapter } from "./types.ts";
@@ -65,6 +67,15 @@ const SOUNDS = {
   correct: "https://assets.mixkit.co/active_storage/sfx/1435/1435-preview.mp3",
   wrong: "https://assets.mixkit.co/active_storage/sfx/2568/2568-preview.mp3",
   victory: "https://assets.mixkit.co/active_storage/sfx/2013/2013-preview.mp3",
+};
+
+// --- Rank Helper ---
+const getRankInfo = (xp: number) => {
+  if (xp >= 5000) return { title: "🐉 Sensei", color: "bg-indigo-600 text-white border-indigo-500" };
+  if (xp >= 2000) return { title: "🎓 Elite Scholar", color: "bg-violet-950 text-violet-400 border-violet-800" };
+  if (xp >= 1000) return { title: "⚔️ Grammar Warrior", color: "bg-orange-950 text-orange-400 border-orange-800" };
+  if (xp >= 500) return { title: "🛡️ Brave Apprentice", color: "bg-emerald-950 text-emerald-400 border-emerald-800" };
+  return { title: "🥚 Newbie", color: "bg-slate-900 text-slate-500 border-slate-800" };
 };
 
 // --- Sub-components ---
@@ -118,8 +129,9 @@ const LeaderboardList: React.FC<{ users: User[]; limit?: number; highlightId?: s
       {students.map((s, idx) => {
         const isTop3 = idx < 3;
         const isMe = s.id === highlightId;
+        const rank = getRankInfo(s.xp);
         return (
-          <div key={s.id} className={`flex items-center justify-between p-4 rounded-2xl border transition-all ${isMe ? "bg-indigo-600/20 border-indigo-500/50 ring-1 ring-indigo-500" : "bg-slate-950 border-slate-800"}`}>
+          <div key={s.id} className={`flex items-center justify-between p-4 rounded-2xl border transition-all ${isMe ? "bg-indigo-600/20 border-indigo-500/50 ring-1 ring-indigo-500 scale-[1.02]" : "bg-slate-950 border-slate-800"}`}>
             <div className="flex items-center gap-3">
               <div
                 className={`w-8 h-8 rounded-lg flex items-center justify-center font-black text-xs ${
@@ -132,7 +144,9 @@ const LeaderboardList: React.FC<{ users: User[]; limit?: number; highlightId?: s
                 <p className={`text-sm font-bold italic line-clamp-1 ${isMe ? "text-white" : "text-slate-200"}`}>
                   {s.name} {isMe && "(You)"}
                 </p>
-                <p className="text-[9px] font-black text-slate-500 uppercase">@{s.username}</p>
+                <div className="flex items-center gap-1.5 mt-0.5">
+                  <span className={`text-[7px] font-black uppercase px-2 py-0.5 rounded-full border ${rank.color}`}>{rank.title}</span>
+                </div>
               </div>
             </div>
             <div className="text-right">
@@ -149,7 +163,7 @@ const LeaderboardList: React.FC<{ users: User[]; limit?: number; highlightId?: s
 };
 
 // --- Student Dashboard Component ---
-const StudentDashboard = ({ user, dbUsers, dbProgress, dbLevels, setActiveQuest, setView, setIsQuizMode, playSound }: any) => {
+const StudentDashboard = ({ user, dbUsers, dbProgress, dbLevels, setActiveQuest, setView, setIsQuizMode, playSound, xpPulse }: any) => {
   const [selectedChapter, setSelectedChapter] = useState<string>(user?.unlockedChapters?.[0] || "bab1");
 
   const chapterQuests = dbLevels.filter((q: any) => q.chapterId === selectedChapter && q.status === "published");
@@ -162,17 +176,22 @@ const StudentDashboard = ({ user, dbUsers, dbProgress, dbLevels, setActiveQuest,
     return user?.unlockedChapters?.includes(chapterId);
   };
 
+  const rankInfo = getRankInfo(user.xp);
+
   return (
-    <div className="max-w-7xl mx-auto py-8 md:py-12 px-4 md:px-6 space-y-12">
+    <div className="max-w-7xl mx-auto py-8 md:py-12 px-4 md:px-6 space-y-12 animate-slide-up">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-8">
         <div>
+          <div className="flex items-center gap-3 mb-4">
+            <span className={`px-4 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border shadow-lg ${rankInfo.color}`}>{rankInfo.title}</span>
+          </div>
           <h2 className="text-4xl md:text-5xl font-black uppercase italic text-white tracking-tighter">
             Welcome back, <span className="text-indigo-500">{user.name}</span>
           </h2>
           <p className="text-slate-500 font-bold mt-2 uppercase tracking-[0.3em] text-[10px]">Your Learning Journey Continues</p>
         </div>
         <div className="flex gap-4">
-          <div className="bg-slate-900 px-6 py-4 rounded-3xl border border-slate-800 text-center">
+          <div className={`bg-slate-900 px-6 py-4 rounded-3xl border border-slate-800 text-center transition-all ${xpPulse ? "animate-xp-pulse border-indigo-500 scale-105 shadow-xl shadow-indigo-900/40" : ""}`}>
             <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Total XP</p>
             <p className="text-xl font-black text-white">{user.xp}</p>
           </div>
@@ -289,13 +308,28 @@ const StudentDashboard = ({ user, dbUsers, dbProgress, dbLevels, setActiveQuest,
   );
 };
 
-const TeacherDashboard = ({ dbUsers, dbLevels, onUpdateConfig, onRewardUser, systemConfig, showAlert, loadData, apiStatus, onConnectKey, playSound }: any) => {
+const TeacherDashboard = ({ dbUsers, dbLevels, dbProgress, onUpdateConfig, onRewardUser, systemConfig, showAlert, loadData, apiStatus, onConnectKey, playSound }: any) => {
   const [activeTab, setActiveTab] = useState<"students" | "chapters" | "leaderboard" | "settings">("students");
   const [managedChapterId, setManagedChapterId] = useState<string | null>(null);
   const [announcement, setAnnouncement] = useState(systemConfig.announcement || "");
   const [isGenerating, setIsGenerating] = useState(false);
   const [manualKey, setManualKey] = useState(localStorage.getItem("quest8_api_key") || "");
   const [showKey, setShowKey] = useState(false);
+
+  // Analytical Insights
+  const hardestQuest = useMemo(() => {
+    if (dbProgress.length === 0) return null;
+    const scoresMap: Record<string, { total: number; count: number }> = {};
+    dbProgress.forEach((p: any) => {
+      if (!scoresMap[p.levelId]) scoresMap[p.levelId] = { total: 0, count: 0 };
+      scoresMap[p.levelId].total += p.score;
+      scoresMap[p.levelId].count += 1;
+    });
+
+    const averages = Object.entries(scoresMap).map(([id, data]) => ({ id, avg: data.total / data.count }));
+    const hardest = averages.sort((a, b) => a.avg - b.avg)[0];
+    return dbLevels.find((q: any) => q.id === hardest?.id);
+  }, [dbProgress, dbLevels]);
 
   const saveManualKey = () => {
     if (manualKey.length < 10) return showAlert("Kode Akses tidak valid!");
@@ -401,9 +435,12 @@ const TeacherDashboard = ({ dbUsers, dbLevels, onUpdateConfig, onRewardUser, sys
   }
 
   return (
-    <div className="max-w-7xl mx-auto py-8 md:py-12 px-4 md:px-6 space-y-12">
+    <div className="max-w-7xl mx-auto py-8 md:py-12 px-4 md:px-6 space-y-12 animate-slide-up">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6">
-        <h2 className="text-4xl font-black uppercase italic text-white">Teacher Terminal</h2>
+        <div>
+          <h2 className="text-4xl font-black uppercase italic text-white tracking-tighter">Teacher Terminal</h2>
+          <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest mt-2">Classroom Analytics & Control</p>
+        </div>
         <div className="flex bg-slate-900 p-2 rounded-2xl border border-slate-800 gap-1 overflow-x-auto">
           {["students", "chapters", "leaderboard", "settings"].map((t) => (
             <button
@@ -421,38 +458,82 @@ const TeacherDashboard = ({ dbUsers, dbLevels, onUpdateConfig, onRewardUser, sys
       </div>
 
       {activeTab === "students" && (
-        <div className="bg-slate-900 rounded-[3rem] border border-slate-800 p-8 overflow-x-auto">
-          <table className="w-full text-left">
-            <thead className="text-[10px] uppercase text-slate-500 border-b border-slate-800">
-              <tr className="pb-4">
-                <th>Nama</th>
-                <th className="text-center">XP</th>
-                <th className="text-right">Aksi</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-800">
-              {dbUsers
-                .filter((u: any) => u.role === UserRole.STUDENT)
-                .map((s: any) => (
-                  <tr key={s.id} className="hover:bg-slate-950/30">
-                    <td className="py-5 font-bold">{s.name}</td>
-                    <td className="text-center text-indigo-400 font-black">{s.xp}</td>
-                    <td className="text-right">
-                      <button
-                        onClick={() => {
-                          onRewardUser(s.id, 100);
-                          playSound("success");
-                        }}
-                        className="p-2 text-amber-500"
-                        title="Beri Hadiah"
-                      >
-                        <Gift size={18} />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-            </tbody>
-          </table>
+        <div className="space-y-8">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="bg-slate-900 p-8 rounded-[3rem] border border-slate-800 flex items-center gap-6">
+              <div className="w-14 h-14 bg-indigo-950 text-indigo-500 rounded-2xl flex items-center justify-center border border-indigo-900/30">
+                <UserIcon size={28} />
+              </div>
+              <div>
+                <p className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Total Siswa</p>
+                <p className="text-2xl font-black text-white italic">{dbUsers.filter((u) => u.role === UserRole.STUDENT).length}</p>
+              </div>
+            </div>
+            <div className="bg-slate-900 p-8 rounded-[3rem] border border-slate-800 flex items-center gap-6 group hover:border-amber-500/50 transition-all">
+              <div className="w-14 h-14 bg-amber-950 text-amber-500 rounded-2xl flex items-center justify-center border border-amber-900/30">
+                <TrendingUp size={28} />
+              </div>
+              <div>
+                <p className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Average Progress</p>
+                <p className="text-2xl font-black text-white italic">Level {Math.round(dbProgress.length / (dbUsers.filter((u) => u.role === UserRole.STUDENT).length || 1))}</p>
+              </div>
+            </div>
+            {hardestQuest && (
+              <div className="bg-rose-950/20 p-8 rounded-[3rem] border border-rose-900/30 flex items-center gap-6">
+                <div className="w-14 h-14 bg-rose-950 text-rose-500 rounded-2xl flex items-center justify-center border border-rose-900/30">
+                  <BarChart3 size={28} />
+                </div>
+                <div>
+                  <p className="text-[10px] font-black uppercase text-rose-500 tracking-widest italic">Most Challenging</p>
+                  <p className="text-sm font-black text-white italic line-clamp-1">{hardestQuest.title}</p>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="bg-slate-900 rounded-[3rem] border border-slate-800 p-8 overflow-x-auto">
+            <table className="w-full text-left">
+              <thead className="text-[10px] uppercase text-slate-500 border-b border-slate-800">
+                <tr className="pb-4">
+                  <th>Nama Siswa</th>
+                  <th className="text-center">Peringkat</th>
+                  <th className="text-center">XP</th>
+                  <th className="text-right">Aksi</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-800">
+                {dbUsers
+                  .filter((u: any) => u.role === UserRole.STUDENT)
+                  .map((s: any) => {
+                    const rank = getRankInfo(s.xp);
+                    return (
+                      <tr key={s.id} className="hover:bg-slate-950/30">
+                        <td className="py-5">
+                          <p className="font-bold text-slate-200">{s.name}</p>
+                          <p className="text-[9px] text-slate-500 font-black uppercase tracking-widest">@{s.username}</p>
+                        </td>
+                        <td className="text-center">
+                          <span className={`text-[8px] font-black uppercase px-2 py-1 rounded-full border ${rank.color}`}>{rank.title}</span>
+                        </td>
+                        <td className="text-center text-indigo-400 font-black italic">{s.xp}</td>
+                        <td className="text-right">
+                          <button
+                            onClick={() => {
+                              onRewardUser(s.id, 100);
+                              playSound("success");
+                            }}
+                            className="p-2 text-amber-500 hover:scale-110 transition-transform"
+                            title="Beri Hadiah XP"
+                          >
+                            <Gift size={18} />
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 
@@ -629,8 +710,9 @@ const App = () => {
   const [alert, setAlert] = useState<string | null>(null);
   const [apiStatus, setApiStatus] = useState(false);
 
-  // Audio State
+  // Audio & Animation State
   const [isMuted, setIsMuted] = useState(() => localStorage.getItem("quest8_muted") === "true");
+  const [xpPulse, setXpPulse] = useState(false);
   const audioRefs = useRef<Record<string, HTMLAudioElement>>({});
 
   useEffect(() => {
@@ -646,7 +728,7 @@ const App = () => {
         }
         const audio = audioRefs.current[type];
         audio.currentTime = 0;
-        audio.play().catch(() => {}); // Catch play errors (browsers often block auto-play)
+        audio.play().catch(() => {}); // Catch play errors
       } catch (e) {
         console.warn("Sound error:", e);
       }
@@ -765,6 +847,9 @@ const App = () => {
       const already = dbProgress.some((p) => p.userId === user.id && p.levelId === activeQuest.id);
 
       if (!already) {
+        setXpPulse(true);
+        setTimeout(() => setXpPulse(false), 2000);
+
         // 1. Simpan Progres Kuis Baru
         const newProgress = { userId: user.id, levelId: activeQuest.id, score, completedAt: new Date().toISOString() };
         await dbService.saveProgress(newProgress);
@@ -891,13 +976,14 @@ const App = () => {
       </div>
 
       {view === "dashboard" && user?.role === UserRole.STUDENT && (
-        <StudentDashboard user={user} dbUsers={dbUsers} dbProgress={dbProgress} dbLevels={dbLevels} setActiveQuest={setActiveQuest} setView={setView} setIsQuizMode={setIsQuizMode} playSound={playSound} />
+        <StudentDashboard user={user} dbUsers={dbUsers} dbProgress={dbProgress} dbLevels={dbLevels} setActiveQuest={setActiveQuest} setView={setView} setIsQuizMode={setIsQuizMode} playSound={playSound} xpPulse={xpPulse} />
       )}
 
       {view === "dashboard" && user?.role !== UserRole.STUDENT && (
         <TeacherDashboard
           dbUsers={dbUsers}
           dbLevels={dbLevels}
+          dbProgress={dbProgress}
           onUpdateConfig={async (c: any) => {
             await dbService.saveConfig({ ...systemConfig, ...c });
             setSystemConfig({ ...systemConfig, ...c });
@@ -919,7 +1005,7 @@ const App = () => {
       )}
 
       {view === "quest-detail" && activeQuest && (
-        <div className="max-w-7xl mx-auto py-8 md:py-12 px-4 md:px-6">
+        <div className="max-w-7xl mx-auto py-8 md:py-12 px-4 md:px-6 animate-slide-up">
           {!isQuizMode ? (
             <div className="max-w-4xl mx-auto space-y-12 animate-in fade-in duration-700">
               <button
