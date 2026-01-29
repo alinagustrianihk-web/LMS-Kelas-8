@@ -38,7 +38,7 @@ import AISensei from "./components/AISensei.tsx";
 import { dbService } from "./services/dbService.ts";
 import { generateQuestImage, generateChapterQuests } from "./services/geminiService.ts";
 
-// --- Sub-components ---
+// --- Sub-components (ContentRenderer, LeaderboardList, StudentDashboard, TeacherDashboard) ---
 
 const ContentRenderer: React.FC<{ content: Quest["content"]; compact?: boolean }> = ({ content, compact }) => (
   <div className={compact ? "space-y-4" : "space-y-6 md:space-y-8"}>
@@ -514,6 +514,48 @@ const App = () => {
     loadData();
   }, [loadData]);
 
+  const handleLogin = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!loginForm.username || !loginForm.password) return showAlert("Harap isi username dan password!");
+    const found = dbUsers.find((u) => u.username === loginForm.username && u.password === loginForm.password);
+    if (found) {
+      setUser(found);
+    } else {
+      showAlert("Username/Password salah!");
+    }
+  };
+
+  const handleRegister = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!loginForm.username || !loginForm.password || !loginForm.name) {
+      return showAlert("Harap isi semua bidang!");
+    }
+
+    // Cek apakah username sudah ada
+    const exists = dbUsers.find((u) => u.username === loginForm.username);
+    if (exists) return showAlert("Username sudah digunakan!");
+
+    const newUser: User = {
+      id: `u_${Date.now()}`,
+      username: loginForm.username,
+      password: loginForm.password,
+      name: loginForm.name,
+      role: UserRole.STUDENT,
+      xp: 0,
+      streak: 0,
+      unlockedChapters: ["bab1"],
+    };
+
+    try {
+      await dbService.saveUser(newUser);
+      setDbUsers((p) => [...p, newUser]);
+      setUser(newUser); // Auto login
+      showAlert("Berhasil terdaftar!");
+    } catch (e) {
+      showAlert("Gagal pendaftaran.");
+    }
+  };
+
   const onQuizFinish = async (score: number) => {
     if (!user || !activeQuest) return;
     if (score >= activeQuest.passingScore) {
@@ -546,52 +588,47 @@ const App = () => {
             <div className="w-20 h-20 bg-indigo-600 rounded-[2rem] flex items-center justify-center text-white font-black text-4xl mx-auto shadow-2xl rotate-12">Q</div>
             <h1 className="text-4xl font-black text-white italic">Quest8 LMS</h1>
           </div>
-          <form
-            onSubmit={
-              isRegistering
-                ? (e) => {
-                    e.preventDefault(); /* register logic */
-                  }
-                : (e) => {
-                    e.preventDefault();
-                    const found = dbUsers.find((u) => u.username === loginForm.username && u.password === loginForm.password);
-                    if (found) setUser(found);
-                    else showAlert("Username/Password salah!");
-                  }
-            }
-            className="bg-slate-900 p-10 rounded-[3rem] border border-slate-800 shadow-2xl space-y-6"
-          >
+          <form onSubmit={isRegistering ? handleRegister : handleLogin} className="bg-slate-900 p-10 rounded-[3rem] border border-slate-800 shadow-2xl space-y-6">
             {isRegistering && (
+              <div className="space-y-2">
+                <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 ml-2">Full Name</label>
+                <input
+                  type="text"
+                  placeholder="Nama Lengkap"
+                  className="w-full px-6 py-4 bg-slate-950 border border-slate-800 rounded-2xl text-white outline-none focus:border-indigo-600 transition-colors"
+                  value={loginForm.name}
+                  onChange={(e) => setLoginForm({ ...loginForm, name: e.target.value })}
+                />
+              </div>
+            )}
+            <div className="space-y-2">
+              <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 ml-2">Username</label>
               <input
                 type="text"
-                placeholder="Nama Lengkap"
-                className="w-full px-6 py-4 bg-slate-950 border border-slate-800 rounded-2xl text-white outline-none"
-                value={loginForm.name}
-                onChange={(e) => setLoginForm({ ...loginForm, name: e.target.value })}
+                placeholder="Username"
+                className="w-full px-6 py-4 bg-slate-950 border border-slate-800 rounded-2xl text-white outline-none focus:border-indigo-600 transition-colors"
+                value={loginForm.username}
+                onChange={(e) => setLoginForm({ ...loginForm, username: e.target.value })}
               />
-            )}
-            <input
-              type="text"
-              placeholder="Username"
-              className="w-full px-6 py-4 bg-slate-950 border border-slate-800 rounded-2xl text-white outline-none"
-              value={loginForm.username}
-              onChange={(e) => setLoginForm({ ...loginForm, username: e.target.value })}
-            />
-            <input
-              type="password"
-              placeholder="Password"
-              className="w-full px-6 py-4 bg-slate-950 border border-slate-800 rounded-2xl text-white outline-none"
-              value={loginForm.password}
-              onChange={(e) => setLoginForm({ ...loginForm, password: e.target.value })}
-            />
-            <button type="submit" className="w-full py-5 bg-indigo-600 text-white rounded-2xl font-black uppercase text-xs tracking-widest">
+            </div>
+            <div className="space-y-2">
+              <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 ml-2">Password</label>
+              <input
+                type="password"
+                placeholder="Password"
+                className="w-full px-6 py-4 bg-slate-950 border border-slate-800 rounded-2xl text-white outline-none focus:border-indigo-600 transition-colors"
+                value={loginForm.password}
+                onChange={(e) => setLoginForm({ ...loginForm, password: e.target.value })}
+              />
+            </div>
+            <button type="submit" className="w-full py-5 bg-indigo-600 text-white rounded-2xl font-black uppercase text-xs tracking-widest hover:bg-indigo-700 transition-all active:scale-[0.98] shadow-lg shadow-indigo-900/40">
               {isRegistering ? "Create Account" : "Enter the Realm"}
             </button>
-            <button type="button" onClick={() => setIsRegistering(!isRegistering)} className="w-full text-[10px] font-black uppercase text-slate-500">
+            <button type="button" onClick={() => setIsRegistering(!isRegistering)} className="w-full text-[10px] font-black uppercase text-slate-500 hover:text-indigo-400 transition-colors">
               {isRegistering ? "Sudah punya akun? Masuk" : "Daftar Siswa Baru"}
             </button>
           </form>
-          {alert && <div className="bg-rose-950/50 border border-rose-900/50 p-4 rounded-2xl text-rose-400 font-bold text-center">{alert}</div>}
+          {alert && <div className="bg-rose-950/50 border border-rose-900/50 p-4 rounded-2xl text-rose-400 font-bold text-center animate-in fade-in slide-in-from-top-2">{alert}</div>}
         </div>
       </div>
     );
