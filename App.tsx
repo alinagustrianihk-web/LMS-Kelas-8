@@ -43,15 +43,15 @@ import AISensei from "./components/AISensei.tsx";
 import { dbService } from "./services/dbService.ts";
 import { generateQuestImage, generateChapterQuests } from "./services/geminiService.ts";
 
-// --- Global helper for API Key Dialog ---
-// Fix: Declare AIStudio and Window extensions to match the existing global type definition
+// --- Global helper for AI Studio bridge ---
 declare global {
   interface AIStudio {
     hasSelectedApiKey: () => Promise<boolean>;
     openSelectKey: () => Promise<void>;
   }
   interface Window {
-    readonly aistudio: AIStudio;
+    // Fix: Removed readonly to ensure it matches common ambient declarations of Window
+    aistudio: AIStudio;
   }
 }
 
@@ -278,11 +278,11 @@ const TeacherDashboard = ({ dbUsers, dbLevels, onUpdateConfig, onRewardUser, sys
   const [isGenerating, setIsGenerating] = useState(false);
 
   const handleBulkGenerate = async (chapter: Chapter) => {
-    if (!apiStatus) return showAlert("AI Engine not connected. Check API Key in Settings!");
-    if (!confirm(`Generate sequence of ${chapter.totalQuests} quests for ${chapter.title}?`)) return;
+    if (!apiStatus) return showAlert("Sensei sedang offline. Aktifkan di menu Settings!");
+    if (!confirm(`Buat ${chapter.totalQuests} quest secara otomatis untuk ${chapter.title}?`)) return;
 
     setIsGenerating(true);
-    showAlert("Sensei is designing the curriculum...");
+    showAlert("Sensei sedang merancang kurikulum...");
 
     try {
       const generatedData = await generateChapterQuests(chapter.id, chapter.title, chapter.totalQuests, 5);
@@ -305,16 +305,12 @@ const TeacherDashboard = ({ dbUsers, dbLevels, onUpdateConfig, onRewardUser, sys
         } as Quest);
       }
 
-      showAlert("Success! Quests generated as drafts.");
+      showAlert("Berhasil! Quest telah dibuat sebagai draf.");
       await loadData();
     } catch (e: any) {
       console.error(e);
-      if (e.message?.includes("not found")) {
-        showAlert("API Key expired or invalid. Reconnecting...");
-        onConnectKey();
-      } else {
-        showAlert("Generation failed. Check connection and try again.");
-      }
+      showAlert("Gagal membuat materi. Mohon hubungkan ulang fitur AI.");
+      onConnectKey();
     } finally {
       setIsGenerating(false);
     }
@@ -324,10 +320,10 @@ const TeacherDashboard = ({ dbUsers, dbLevels, onUpdateConfig, onRewardUser, sys
     const questsToUpdate = dbLevels.filter((q: any) => q.chapterId === chapterId);
     try {
       await Promise.all(questsToUpdate.map((q: any) => dbService.saveQuest({ ...q, status: publish ? "published" : "draft" })));
-      showAlert(`Chapter ${publish ? "Published" : "Drafted"}.`);
+      showAlert(`Bab ${publish ? "Berhasil Dipublikasi" : "Kembali ke Draf"}.`);
       await loadData();
     } catch (e) {
-      showAlert("Status update failed.");
+      showAlert("Gagal memperbarui status.");
     }
   };
 
@@ -336,7 +332,7 @@ const TeacherDashboard = ({ dbUsers, dbLevels, onUpdateConfig, onRewardUser, sys
     return (
       <div className="max-w-7xl mx-auto py-8 md:py-12 px-4 md:px-6 space-y-6">
         <button onClick={() => setManagedChapterId(null)} className="flex items-center gap-2 text-[10px] font-black uppercase text-slate-500">
-          <ChevronLeft size={16} /> Back
+          <ChevronLeft size={16} /> Kembali
         </button>
         <div className="grid grid-cols-1 gap-3">
           {quests.map((q: any) => (
@@ -351,7 +347,7 @@ const TeacherDashboard = ({ dbUsers, dbLevels, onUpdateConfig, onRewardUser, sys
               <div className="flex gap-2">
                 <button
                   onClick={async () => {
-                    if (confirm("Delete?")) {
+                    if (confirm("Hapus quest ini?")) {
                       await dbService.deleteQuest(q.id);
                       await loadData();
                     }
@@ -386,9 +382,9 @@ const TeacherDashboard = ({ dbUsers, dbLevels, onUpdateConfig, onRewardUser, sys
           <table className="w-full text-left">
             <thead className="text-[10px] uppercase text-slate-500 border-b border-slate-800">
               <tr className="pb-4">
-                <th>Name</th>
+                <th>Nama</th>
                 <th className="text-center">XP</th>
-                <th className="text-right">Action</th>
+                <th className="text-right">Aksi</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800">
@@ -399,7 +395,7 @@ const TeacherDashboard = ({ dbUsers, dbLevels, onUpdateConfig, onRewardUser, sys
                     <td className="py-5 font-bold">{s.name}</td>
                     <td className="text-center text-indigo-400 font-black">{s.xp}</td>
                     <td className="text-right">
-                      <button onClick={() => onRewardUser(s.id, 100)} className="p-2 text-amber-500">
+                      <button onClick={() => onRewardUser(s.id, 100)} className="p-2 text-amber-500" title="Beri Hadiah">
                         <Gift size={18} />
                       </button>
                     </td>
@@ -416,7 +412,7 @@ const TeacherDashboard = ({ dbUsers, dbLevels, onUpdateConfig, onRewardUser, sys
             <div className="absolute inset-0 z-50 bg-slate-950/50 backdrop-blur-sm flex items-center justify-center rounded-[3rem]">
               <div className="flex flex-col items-center gap-4">
                 <Loader2 size={40} className="animate-spin text-indigo-500" />
-                <p className="text-xs font-black uppercase text-white animate-pulse">AI is working...</p>
+                <p className="text-xs font-black uppercase text-white animate-pulse">Sensei Sedang Bekerja...</p>
               </div>
             </div>
           )}
@@ -431,12 +427,12 @@ const TeacherDashboard = ({ dbUsers, dbLevels, onUpdateConfig, onRewardUser, sys
                       <Layers size={24} />
                     </div>
                     <button onClick={() => toggleChapterStatus(chap.id, !isPublished)} className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase ${isPublished ? "bg-rose-950 text-rose-400" : "bg-emerald-950 text-emerald-400"}`}>
-                      {isPublished ? "Unpublish" : "Publish All"}
+                      {isPublished ? "Tarik Publikasi" : "Publikasikan Bab"}
                     </button>
                   </div>
                   <h3 className="text-2xl font-black text-white italic">{chap.title}</h3>
                   <p className="text-xs text-slate-500 font-bold mt-2">
-                    {chapQuests.length} / {chap.totalQuests} Quests created.
+                    {chapQuests.length} / {chap.totalQuests} Quest tersedia.
                   </p>
                 </div>
                 <div className="pt-6 border-t border-slate-800 space-y-3">
@@ -445,10 +441,10 @@ const TeacherDashboard = ({ dbUsers, dbLevels, onUpdateConfig, onRewardUser, sys
                     disabled={isGenerating || chapQuests.length >= chap.totalQuests}
                     className="w-full py-4 bg-indigo-600 disabled:opacity-50 text-white rounded-2xl font-black uppercase text-[10px] flex items-center justify-center gap-2"
                   >
-                    <Sparkles size={16} /> {chapQuests.length >= chap.totalQuests ? "Materi Lengkap" : "Generate Full Chapter"}
+                    <Sparkles size={16} /> {chapQuests.length >= chap.totalQuests ? "Kurikulum Lengkap" : "Buat Materi Otomatis"}
                   </button>
                   <button onClick={() => setManagedChapterId(chap.id)} className="w-full py-4 bg-slate-950 text-slate-400 border border-slate-800 rounded-2xl font-black uppercase text-[10px] flex items-center justify-center gap-2">
-                    <Settings2 size={16} /> Manage Quests
+                    <Settings2 size={16} /> Kelola Quest
                   </button>
                 </div>
               </div>
@@ -460,7 +456,7 @@ const TeacherDashboard = ({ dbUsers, dbLevels, onUpdateConfig, onRewardUser, sys
       {activeTab === "leaderboard" && (
         <div className="max-w-2xl mx-auto bg-slate-900 p-10 rounded-[3rem] border border-slate-800 shadow-2xl">
           <h3 className="text-2xl font-black text-white italic mb-8 uppercase flex items-center gap-3">
-            <Trophy className="text-amber-500" /> Class Ranking
+            <Trophy className="text-amber-500" /> Peringkat Kelas
           </h3>
           <LeaderboardList users={dbUsers} />
         </div>
@@ -471,51 +467,45 @@ const TeacherDashboard = ({ dbUsers, dbLevels, onUpdateConfig, onRewardUser, sys
           <div className="bg-slate-900 p-10 rounded-[3rem] border border-slate-800 space-y-8">
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-black text-white uppercase tracking-widest italic flex items-center gap-2">
-                <Activity size={18} className="text-indigo-400" /> Engine Config
+                <Activity size={18} className="text-indigo-400" /> Konfigurasi Mesin
               </h3>
               <div
                 className={`flex items-center gap-2 px-4 py-1.5 rounded-full text-[10px] font-black uppercase border transition-all ${apiStatus ? "bg-emerald-950 text-emerald-500 border-emerald-900" : "bg-rose-950 text-rose-500 border-rose-900"}`}
               >
-                {apiStatus ? <Wifi size={12} /> : <WifiOff size={12} />} {apiStatus ? "Connected" : "Disconnected"}
+                {apiStatus ? <Wifi size={12} /> : <WifiOff size={12} />} {apiStatus ? "Online" : "Offline"}
               </div>
             </div>
 
             <div className="p-6 bg-slate-950 rounded-2xl border border-slate-800 space-y-4">
-              <p className="text-[10px] text-slate-500 font-black uppercase tracking-[0.2em]">AI Status: {apiStatus ? "Gemini 3 Flash Ready" : "API Key Missing/Invalid"}</p>
+              <p className="text-[10px] text-slate-500 font-black uppercase tracking-[0.2em]">Status Sensei: {apiStatus ? "Siap Membantu" : "Sedang Bermeditasi (Offline)"}</p>
               {!apiStatus ? (
                 <button
                   onClick={onConnectKey}
                   className="w-full py-5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-black uppercase text-xs flex items-center justify-center gap-3 shadow-xl shadow-indigo-900/20 transition-all active:scale-95"
                 >
-                  <Key size={18} /> Connect AI Engine
+                  <Sparkles size={18} /> Aktifkan Fitur AI Sensei
                 </button>
               ) : (
                 <button
                   onClick={onConnectKey}
                   className="w-full py-5 bg-slate-900 hover:bg-slate-800 text-indigo-400 rounded-xl border border-indigo-900/30 font-black uppercase text-xs flex items-center justify-center gap-3 transition-all"
                 >
-                  <RotateCcw size={18} /> Update / Switch Key
+                  <RotateCcw size={18} /> Segarkan Koneksi
                 </button>
               )}
-              <div className="flex items-center gap-2 pt-2">
-                <Link size={14} className="text-indigo-400" />
-                <a href="https://ai.google.dev/gemini-api/docs/billing" target="_blank" className="text-[9px] font-black text-slate-500 uppercase hover:text-indigo-400 underline transition-all">
-                  Billing Documentation
-                </a>
-              </div>
             </div>
           </div>
 
           <div className="bg-slate-900 p-10 rounded-[3rem] border border-slate-800 space-y-6">
-            <h3 className="text-xl font-black text-white uppercase italic">Broadcast Center</h3>
+            <h3 className="text-xl font-black text-white uppercase italic">Pusat Pengumuman</h3>
             <textarea
               value={announcement}
               onChange={(e) => setAnnouncement(e.target.value)}
               className="w-full h-40 p-5 bg-slate-950 border border-slate-800 rounded-2xl text-white text-sm outline-none focus:border-indigo-500 transition-colors"
-              placeholder="Message..."
+              placeholder="Tulis pesan untuk siswa..."
             />
             <button onClick={() => onUpdateConfig({ announcement })} className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black uppercase text-xs shadow-lg shadow-indigo-900/20">
-              Update Broadcast
+              Perbarui Pengumuman
             </button>
           </div>
         </div>
@@ -566,7 +556,6 @@ const App = () => {
       const hasKey = await window.aistudio.hasSelectedApiKey();
       setApiStatus(hasKey);
     } catch (e) {
-      // Fallback to process.env.API_KEY if bridge is not available
       if (process.env.API_KEY && process.env.API_KEY.length > 10) setApiStatus(true);
     }
   }, []);
@@ -574,11 +563,10 @@ const App = () => {
   const handleConnectKey = async () => {
     try {
       await window.aistudio.openSelectKey();
-      // Assume successful and proceed
       setApiStatus(true);
-      showAlert("AI Engine Connected!");
+      showAlert("Fitur AI Sensei Aktif!");
     } catch (e) {
-      showAlert("Connection failed.");
+      showAlert("Gagal mengaktifkan fitur.");
     }
   };
 
