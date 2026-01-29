@@ -2,10 +2,21 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { Quest, Question } from "../types";
 
 /**
+ * Helper to get the most valid API Key available
+ */
+const getActiveApiKey = () => {
+  const manualKey = localStorage.getItem("quest8_api_key");
+  return manualKey && manualKey.length > 10 ? manualKey : process.env.API_KEY || "";
+};
+
+/**
  * AI English Tutor assistant using Gemini.
  */
 export async function askTutor(topic: string, question: string) {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const apiKey = getActiveApiKey();
+  if (!apiKey) return "Sensei belum diaktifkan. Mohon masukkan Kode Akses di menu Settings.";
+
+  const ai = new GoogleGenAI({ apiKey });
   try {
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
@@ -14,7 +25,7 @@ export async function askTutor(topic: string, question: string) {
     return response.text;
   } catch (error) {
     console.error("Tutor Error:", error);
-    return "Sensei sedang bermeditasi (Error). Mohon coba lagi nanti.";
+    return "Sensei sedang bermeditasi (Error). Mohon cek koneksi atau Kode Akses Anda.";
   }
 }
 
@@ -26,10 +37,11 @@ function cleanJsonString(str: string): string {
 }
 
 /**
- * Bulk generate quests for a chapter using process.env.API_KEY and custom question count per quest.
+ * Bulk generate quests for a chapter.
  */
 export async function generateChapterQuests(chapterId: string, chapterTitle: string, questCount: number, questionsPerQuest: number = 5): Promise<Partial<Quest>[]> {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const apiKey = getActiveApiKey();
+  const ai = new GoogleGenAI({ apiKey });
 
   try {
     const response = await ai.models.generateContent({
@@ -123,7 +135,8 @@ export async function generateChapterQuests(chapterId: string, chapterTitle: str
 }
 
 export async function generateQuestImage(topic: string) {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const apiKey = getActiveApiKey();
+  const ai = new GoogleGenAI({ apiKey });
   try {
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash-image",

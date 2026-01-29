@@ -28,12 +28,14 @@ import {
   ChevronDown,
   ChevronUp,
   Eye,
+  EyeOff,
   X,
   Activity,
   Wifi,
   WifiOff,
   Link,
   RotateCcw,
+  Save,
 } from "lucide-react";
 import { INITIAL_CURRICULUM, DEFAULT_USERS, CHAPTERS } from "./constants.tsx";
 import { User, UserRole, Quest, Progress, SystemConfig, Chapter } from "./types.ts";
@@ -50,7 +52,6 @@ declare global {
     openSelectKey: () => Promise<void>;
   }
   interface Window {
-    // Making aistudio optional to match potential external declarations and resolve modifier mismatch
     aistudio?: AIStudio;
   }
 }
@@ -276,6 +277,14 @@ const TeacherDashboard = ({ dbUsers, dbLevels, onUpdateConfig, onRewardUser, sys
   const [managedChapterId, setManagedChapterId] = useState<string | null>(null);
   const [announcement, setAnnouncement] = useState(systemConfig.announcement || "");
   const [isGenerating, setIsGenerating] = useState(false);
+  const [manualKey, setManualKey] = useState(localStorage.getItem("quest8_api_key") || "");
+  const [showKey, setShowKey] = useState(false);
+
+  const saveManualKey = () => {
+    localStorage.setItem("quest8_api_key", manualKey);
+    showAlert("Kode Akses Berhasil Disimpan!");
+    setTimeout(() => window.location.reload(), 1000); // Reload to apply key
+  };
 
   const handleBulkGenerate = async (chapter: Chapter) => {
     if (!apiStatus) return showAlert("Sensei sedang offline. Aktifkan di menu Settings!");
@@ -309,8 +318,7 @@ const TeacherDashboard = ({ dbUsers, dbLevels, onUpdateConfig, onRewardUser, sys
       await loadData();
     } catch (e: any) {
       console.error(e);
-      showAlert("Gagal membuat materi. Mohon hubungkan ulang fitur AI.");
-      onConnectKey();
+      showAlert("Gagal membuat materi. Mohon periksa kembali Kode Akses Sensei.");
     } finally {
       setIsGenerating(false);
     }
@@ -463,7 +471,7 @@ const TeacherDashboard = ({ dbUsers, dbLevels, onUpdateConfig, onRewardUser, sys
       )}
 
       {activeTab === "settings" && (
-        <div className="max-w-xl mx-auto space-y-6">
+        <div className="max-w-xl mx-auto space-y-6 pb-20">
           <div className="bg-slate-900 p-10 rounded-[3rem] border border-slate-800 space-y-8">
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-black text-white uppercase tracking-widest italic flex items-center gap-2">
@@ -476,33 +484,46 @@ const TeacherDashboard = ({ dbUsers, dbLevels, onUpdateConfig, onRewardUser, sys
               </div>
             </div>
 
-            <div className="p-6 bg-slate-950 rounded-2xl border border-slate-800 space-y-4">
-              <p className="text-[10px] text-slate-500 font-black uppercase tracking-[0.2em]">Status Sensei: {apiStatus ? "Siap Membantu" : "Sedang Bermeditasi (Offline)"}</p>
-              <div className="flex flex-col gap-3">
-                {!apiStatus ? (
-                  <button
-                    onClick={onConnectKey}
-                    className="w-full py-5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-black uppercase text-xs flex items-center justify-center gap-3 shadow-xl shadow-indigo-900/20 transition-all active:scale-95"
-                  >
-                    <Sparkles size={18} /> Aktifkan Fitur AI Sensei
+            <div className="p-8 bg-slate-950 rounded-[2.5rem] border border-slate-800 space-y-6">
+              <div className="space-y-4">
+                <div className="flex justify-between items-center">
+                  <p className="text-[10px] text-slate-500 font-black uppercase tracking-[0.2em]">Kode Akses Sensei</p>
+                  <button onClick={() => setShowKey(!showKey)} className="text-indigo-400 hover:text-indigo-300 transition-colors">
+                    {showKey ? <EyeOff size={16} /> : <Eye size={16} />}
                   </button>
-                ) : (
-                  <button
-                    onClick={onConnectKey}
-                    className="w-full py-5 bg-slate-900 hover:bg-slate-800 text-indigo-400 rounded-xl border border-indigo-900/30 font-black uppercase text-xs flex items-center justify-center gap-3 transition-all"
-                  >
-                    <RotateCcw size={18} /> Segarkan Koneksi
-                  </button>
-                )}
+                </div>
 
+                <div className="relative group">
+                  <input
+                    type={showKey ? "text" : "password"}
+                    value={manualKey}
+                    onChange={(e) => setManualKey(e.target.value)}
+                    placeholder="Tempel Kode Gemini Disini..."
+                    className="w-full bg-slate-900 border border-slate-800 p-5 rounded-2xl text-white text-sm outline-none focus:border-indigo-600 transition-all font-mono"
+                  />
+                  <Key className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-700 pointer-events-none" size={18} />
+                </div>
+
+                <button
+                  onClick={saveManualKey}
+                  className="w-full py-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-black uppercase text-xs flex items-center justify-center gap-3 shadow-lg shadow-emerald-900/20 transition-all active:scale-95"
+                >
+                  <Save size={18} /> Simpan Kode Akses
+                </button>
+              </div>
+
+              <div className="h-[1px] bg-slate-800 w-full" />
+
+              <div className="flex flex-col gap-3">
                 <a
                   href="https://aistudio.google.com/app/apikey"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="w-full py-3 bg-slate-900 hover:bg-slate-800 text-slate-400 border border-slate-800 rounded-xl font-black uppercase text-[10px] flex items-center justify-center gap-2 transition-all"
+                  className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black uppercase text-xs flex items-center justify-center gap-3 transition-all"
                 >
-                  <Globe size={14} /> Dapatkan Akses Gratis
+                  <Globe size={18} /> Dapatkan Akses Gratis
                 </a>
+                <p className="text-[9px] text-slate-500 font-bold text-center italic">Klik di atas, ambil kodenya, lalu tempel di kotak input.</p>
               </div>
             </div>
           </div>
@@ -564,14 +585,19 @@ const App = () => {
 
   const checkApiStatus = useCallback(async () => {
     try {
-      if (window.aistudio && typeof window.aistudio.hasSelectedApiKey === "function") {
+      const manualKey = localStorage.getItem("quest8_api_key");
+      if (manualKey && manualKey.length > 10) {
+        setApiStatus(true);
+      } else if (window.aistudio && typeof window.aistudio.hasSelectedApiKey === "function") {
         const hasKey = await window.aistudio.hasSelectedApiKey();
         setApiStatus(hasKey);
       } else if (process.env.API_KEY && process.env.API_KEY.length > 10) {
         setApiStatus(true);
+      } else {
+        setApiStatus(false);
       }
     } catch (e) {
-      if (process.env.API_KEY && process.env.API_KEY.length > 10) setApiStatus(true);
+      setApiStatus(false);
     }
   }, []);
 
@@ -582,13 +608,7 @@ const App = () => {
         setApiStatus(true);
         showAlert("Fitur AI Sensei Aktif!");
       } else {
-        // Jika bridge tidak ada, cek apakah ada API_KEY env
-        if (process.env.API_KEY) {
-          setApiStatus(true);
-          showAlert("Sensei Terhubung!");
-        } else {
-          showAlert("Akses Belajar Tidak Ditemukan.");
-        }
+        showAlert("Mohon gunakan kotak 'Kode Akses Sensei' di bawah.");
       }
     } catch (e) {
       console.error(e);
