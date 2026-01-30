@@ -39,6 +39,7 @@ import {
   ClipboardCheck,
   BarChart3,
   TrendingUp,
+  CheckCircle,
 } from "lucide-react";
 import { INITIAL_CURRICULUM, DEFAULT_USERS, CHAPTERS } from "./constants.tsx";
 import { User, UserRole, Quest, Progress, SystemConfig, Chapter } from "./types.ts";
@@ -255,31 +256,38 @@ const StudentDashboard = ({ user, dbUsers, dbProgress, dbLevels, setActiveQuest,
                       setView("quest-detail");
                       playSound("page");
                     }}
-                    className="group bg-slate-900 rounded-[2.5rem] border border-slate-800 overflow-hidden cursor-pointer transition-all hover:scale-[1.02] hover:border-indigo-500/50 shadow-sm"
+                    className={`group bg-slate-900 rounded-[2.5rem] border overflow-hidden cursor-pointer transition-all hover:scale-[1.02] shadow-sm ${completed ? "border-emerald-500/50 shadow-emerald-900/10" : "border-slate-800 hover:border-indigo-500/50"}`}
                   >
                     <div className="h-40 relative">
-                      <img src={quest.imageUrl || "https://images.unsplash.com/photo-1456513080510-7bf3a84b82f8?w=800"} className="w-full h-full object-cover" />
+                      <img src={quest.imageUrl || "https://images.unsplash.com/photo-1456513080510-7bf3a84b82f8?w=800"} className={`w-full h-full object-cover ${completed ? "opacity-60 grayscale-[0.5]" : ""}`} />
                       <div className="absolute inset-0 bg-gradient-to-t from-slate-900" />
                       {completed && (
-                        <div className="absolute top-4 right-4 bg-emerald-500 text-white p-1.5 rounded-xl shadow-lg shadow-emerald-900/40">
-                          <CheckCircle2 size={16} />
+                        <div className="absolute top-4 right-4 bg-emerald-500 text-white p-2 rounded-2xl shadow-xl shadow-emerald-900/40 flex items-center gap-2">
+                          <CheckCircle size={16} />
+                          <span className="text-[8px] font-black uppercase">COMPLETED</span>
                         </div>
                       )}
                       <div className="absolute bottom-4 left-6">
-                        <span className="text-[9px] font-black text-indigo-400 bg-indigo-950/80 backdrop-blur-md px-3 py-1 rounded-full border border-indigo-500/30 uppercase tracking-widest">Quest {quest.order}</span>
+                        <span
+                          className={`text-[9px] font-black px-3 py-1 rounded-full border backdrop-blur-md uppercase tracking-widest ${completed ? "text-emerald-400 bg-emerald-950/80 border-emerald-500/30" : "text-indigo-400 bg-indigo-950/80 border-indigo-500/30"}`}
+                        >
+                          Quest {quest.order}
+                        </span>
                       </div>
                     </div>
                     <div className="p-6 space-y-4">
                       <div>
-                        <h4 className="text-lg font-black text-white italic">{quest.title}</h4>
+                        <h4 className={`text-lg font-black italic ${completed ? "text-emerald-400/80" : "text-white"}`}>{quest.title}</h4>
                         <p className="text-[10px] font-bold text-slate-500 uppercase mt-1">{quest.topic}</p>
                       </div>
                       <div className="flex justify-between items-center pt-4 border-t border-slate-800">
-                        <div className="flex items-center gap-2 text-indigo-400">
+                        <div className={`flex items-center gap-2 ${completed ? "text-emerald-500/50" : "text-indigo-400"}`}>
                           <Zap size={14} />
-                          <span className="text-[10px] font-black uppercase">{quest.rewardPoints} XP</span>
+                          <span className="text-[10px] font-black uppercase">
+                            {quest.rewardPoints} XP {completed && "(Claimed)"}
+                          </span>
                         </div>
-                        <ArrowRight size={16} className="text-slate-600 group-hover:text-indigo-500 group-hover:translate-x-1 transition-all" />
+                        <ArrowRight size={16} className={`group-hover:translate-x-1 transition-all ${completed ? "text-emerald-500/50" : "text-slate-600 group-hover:text-indigo-500"}`} />
                       </div>
                     </div>
                   </div>
@@ -300,7 +308,7 @@ const StudentDashboard = ({ user, dbUsers, dbProgress, dbLevels, setActiveQuest,
           <div className="bg-indigo-600 p-8 rounded-[3rem] shadow-xl shadow-indigo-900/20 relative overflow-hidden group">
             <Sparkles className="absolute -top-4 -right-4 text-white opacity-20 w-24 h-24 group-hover:rotate-12 transition-transform" />
             <h3 className="text-white font-black italic text-xl mb-2 relative z-10">Study Tip</h3>
-            <p className="text-indigo-100 text-xs font-bold leading-relaxed relative z-10 opacity-90">Ulangi materi yang sudah kamu selesaikan untuk memperkuat ingatanmu. AI Sensei selalu siap membantu!</p>
+            <p className="text-indigo-100 text-xs font-bold leading-relaxed relative z-10 opacity-90">Setiap bab harus kamu tamatkan hingga quest terakhir untuk membuka bab berikutnya. Fokus dan teliti, Sensei percaya padamu!</p>
           </div>
         </div>
       </div>
@@ -572,6 +580,7 @@ const TeacherDashboard = ({ dbUsers, dbLevels, dbProgress, onUpdateConfig, onRew
                     disabled={isGenerating || chapQuests.length >= chap.totalQuests}
                     className="w-full py-4 bg-indigo-600 disabled:opacity-50 text-white rounded-2xl font-black uppercase text-[10px] flex items-center justify-center gap-2"
                   >
+                    {/* Fixed undefined symbol '開' by replacing it with 'Sparkles' icon */}
                     <Sparkles size={16} /> {chapQuests.length >= chap.totalQuests ? "Kurikulum Lengkap" : "Buat Materi Otomatis"}
                   </button>
                   <button
@@ -857,20 +866,19 @@ const App = () => {
         // 2. Siapkan data update user (XP)
         let updatedUnlockedChapters = [...(user.unlockedChapters || ["bab1"])];
 
-        // 3. Jembatan Akses: Cek apakah Bab berikutnya harus dibuka
-        const publishedQuestsInChapter = dbLevels.filter((q) => q.chapterId === activeQuest.chapterId && q.status === "published");
-        const completedQuestIds = new Set([...dbProgress.filter((p) => p.userId === user.id).map((p) => p.levelId), activeQuest.id]);
+        // 3. Jembatan Akses: Cek apakah Quest ini adalah quest terakhir di Bab ini
+        const questsInChapter = dbLevels.filter((q) => q.chapterId === activeQuest.chapterId && q.status === "published");
+        const lastQuestOrder = Math.max(...questsInChapter.map((q) => q.order));
 
-        const isChapterComplete = publishedQuestsInChapter.every((q) => completedQuestIds.has(q.id));
-
-        if (isChapterComplete) {
+        // Jika quest yang baru selesai adalah quest terakhir (order tertinggi)
+        if (activeQuest.order === lastQuestOrder) {
           const currentChapIdx = CHAPTERS.findIndex((c) => c.id === activeQuest.chapterId);
           if (currentChapIdx !== -1 && currentChapIdx < CHAPTERS.length - 1) {
             const nextChapter = CHAPTERS[currentChapIdx + 1];
             if (!updatedUnlockedChapters.includes(nextChapter.id)) {
               updatedUnlockedChapters.push(nextChapter.id);
               playSound("victory");
-              showAlert(`🎉 Selamat! Bab ${nextChapter.order} Berhasil Terbuka!`);
+              showAlert(`🎉 Luar Biasa! Bab ${nextChapter.order} Berhasil Terbuka!`);
             }
           }
         }
@@ -1032,16 +1040,32 @@ const App = () => {
                       <p className="text-[10px] font-black uppercase text-slate-500 mb-1">Rewards</p>
                       <p className="text-xl font-black text-white">{activeQuest.rewardPoints} XP</p>
                     </div>
+                    {dbProgress.some((p) => p.userId === user?.id && p.levelId === activeQuest.id) && (
+                      <div className="text-center">
+                        <p className="text-[10px] font-black uppercase text-emerald-500 mb-1">Status</p>
+                        <p className="text-sm font-black text-emerald-400 uppercase tracking-widest mt-1">Lulus</p>
+                      </div>
+                    )}
                   </div>
-                  <button
-                    onClick={() => {
-                      setIsQuizMode(true);
-                      playSound("click");
-                    }}
-                    className="px-12 py-6 bg-indigo-600 text-white rounded-[2rem] font-black uppercase text-sm tracking-widest shadow-2xl flex items-center justify-center gap-4 hover:scale-105 transition-all"
-                  >
-                    Start Challenge <Zap size={20} />
-                  </button>
+
+                  {dbProgress.some((p) => p.userId === user?.id && p.levelId === activeQuest.id) ? (
+                    <div className="flex flex-col items-center md:items-end gap-3">
+                      <div className="px-10 py-5 bg-slate-950 text-slate-600 border border-slate-800 rounded-[2rem] font-black uppercase text-[10px] tracking-[0.2em] flex items-center gap-3 cursor-not-allowed">
+                        Quest Conquered <CheckCircle size={18} className="text-emerald-500" />
+                      </div>
+                      <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest italic">Reward points already claimed.</p>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => {
+                        setIsQuizMode(true);
+                        playSound("click");
+                      }}
+                      className="px-12 py-6 bg-indigo-600 text-white rounded-[2rem] font-black uppercase text-sm tracking-widest shadow-2xl flex items-center justify-center gap-4 hover:scale-105 transition-all shadow-indigo-900/40"
+                    >
+                      Start Challenge <Zap size={20} />
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
